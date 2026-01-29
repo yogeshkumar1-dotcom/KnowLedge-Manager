@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import axiosInstance from '../utils/axios';
+import api from '../api/index.js';
 
 const AuthContext = createContext();
 
@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         try {
           // Validate token by calling the /me endpoint
-          const response = await axiosInstance.get('/api/v1/auth/me');
+          const response = await api.get('/auth/me');
           if (response.data.success) {
             setUser({ token, ...response.data.data });
             console.log('User authenticated:', response.data.data.email);
@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axiosInstance.post('/api/v1/auth/logout');
+      await api.post('/auth/logout');
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
