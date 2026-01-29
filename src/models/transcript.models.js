@@ -62,6 +62,12 @@ const transcriptSchema = new mongoose.Schema(
       summary: String,
       keyPoints: [String],
     },
+    analytics: {
+      consistency: { type: Number, default: 0 },
+      replicacy: { type: Number, default: 0 },
+      logicalThinking: { type: Number, default: 0 },
+      relatableAnswers: { type: Number, default: 0 },
+    },
     notesCreated: { type: Boolean, default: false },
     externalProvider: { type: String, default: "assemblyai" },
     externalId: { type: String }, // id from external provider

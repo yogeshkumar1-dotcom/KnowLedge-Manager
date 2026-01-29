@@ -1,26 +1,30 @@
 import jwt from "jsonwebtoken";
 import asyncHandler from "../utils/asyncHandler.js";
 import { User } from "../models/users.model.js";
-
+import ApiError from "../utils/ApiError.js";
 
 const authMiddleware = asyncHandler(async(req, res, next) => {
-  const token = req.headers.authorization;
+  let token = req.headers.authorization;
   
-  token = token && token.split(" ")[1]; // Bearer <token>
+  if (token && token.startsWith('Bearer ')) {
+    token = token.split(" ")[1]; // Bearer <token>
+  } else {
+    throw new ApiError(401, "No token provided");
+  }
   
-    if (!token) {
-        return res.status(401).json({ message: "No token provided" });
-    }
+  try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded) {
-        return res.status(401).json({ message: "Invalid token" });
-    }
-    const user = await User.findById(decoded._id);
+    const user = await User.findById(decoded.id).select('-password -refreshToken');
+    
     if (!user) {
-        return res.status(401).json({ message: "User not found" });
+      throw new ApiError(401, "User not found");
     }
+    
     req.user = user;
-    next();     
-})
+    next();
+  } catch (error) {
+    throw new ApiError(401, "Invalid token");
+  }
+});
 
 export default authMiddleware;

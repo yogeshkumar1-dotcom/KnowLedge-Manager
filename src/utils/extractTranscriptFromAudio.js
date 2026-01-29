@@ -1,9 +1,15 @@
 import axios from "axios";
 import { supabase } from "./supabaseClient.js";
+import ApiError from "./ApiError.js";
+
+
+
 const ASSEMBLYAI_KEY = process.env.ASSEMBLYAI_API_KEY;
+
 const extractTranscript = async (fileName, transcript) => {
+  const bucketName = process.env.SUPABASE_BUCKET_NAME || "supabase-bucket";
   const { data: signedData, error: signedError } = await supabase.storage
-    .from("meeting-audio")
+    .from(bucketName)
     .createSignedUrl(fileName, 60 * 60);
 
   if (signedError) {
@@ -40,13 +46,13 @@ const extractTranscript = async (fileName, transcript) => {
       transcript.errorMessage = "Transcription failed";
 
       await transcript.save();
-      return res.status(500).json({ error: "Transcription failed" });
+      throw new ApiError(500, "Transcription failed");
     } else {
       // wait 2 seconds before next poll
       await new Promise((r) => setTimeout(r, 2000));
     }
   }
-  return transcriptText 
+  return transcriptText
 };
 
 export { extractTranscript }

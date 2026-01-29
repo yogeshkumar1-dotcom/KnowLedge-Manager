@@ -1,13 +1,14 @@
 import { supabase } from "../utils/supabaseClient.js";
 import fs from "fs";
 import axios from "axios";
-import { PDFParse  } from "pdf-parse";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
 import mammoth from "mammoth";
-import FormData from "form-data";
 import ApiError from "../utils/ApiError.js";
 
 const uploadAudioOfMeeting = async (file) => {
-  const bucketName = process.env.SUPABASE_BUCKET_NAME;
+  const bucketName = process.env.SUPABASE_BUCKET_NAME || "supabase-bucket";
   if (!bucketName) {
     throw new ApiError(500, "Supabase bucket name not configured");
   }
@@ -28,7 +29,7 @@ const uploadAudioOfMeeting = async (file) => {
   }
   const { data: signedUrlData, error: urlError } = await supabase.storage
     .from(bucketName)
-    .createSignedUrl(fileName, 60 * 60 * 24); // URL valid for 1 hour
+    .createSignedUrl(fileName, 60 * 60 * 24); // URL valid for 24 hours
   if (urlError) {
     throw new ApiError(500, "Error generating signed URL", [urlError.message]);
   }
@@ -38,44 +39,34 @@ const uploadAudioOfMeeting = async (file) => {
   };
 };
 
-
 const uploadTranscriptOfMeeting = async (file) => {
   if (!file) throw new ApiError(400, "No file uploaded");
-  console.log("Files - ", file)
+  console.log("Files - ", file);
 
-  let fileType = file.mimetype.split("/")[1];
-  // const filePath = file.path;
-  const dataBuffer = file.buffer
+  const fileType = file.mimetype.split("/")[1];
+  const dataBuffer = file.buffer;
   let transcriptText = "";
 
   try {
-   
     // 📄 PDF → extract text
-    if (fileType === "pdf") {
-      // const dataBuffer = fs.readFileSync(filePath);
-      const pdfData = new PDFParse({data: dataBuffer});
-      transcriptText = (await pdfData.getText()).text;
-      console.log(transcriptText)
+    if (fileType === "pdf" || file.originalname.toLowerCase().endsWith(".pdf")) {
+      const data = await pdf(dataBuffer);
+      transcriptText = data.text;
     }
-
     // 🧾 DOCX → extract text
-    else if (fileType === "vnd.openxmlformats-officedocument.wordprocessingml.document") {
-      // const docBuffer = fs.readFileSync(filePath);
-      const result = await mammoth.extractRawText({ buffer: docBuffer });
+    else if (
+      fileType === "vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.originalname.toLowerCase().endsWith(".docx")
+    ) {
+      const result = await mammoth.extractRawText({ buffer: dataBuffer });
       transcriptText = result.value;
     }
-
     // 📝 TXT → read directly
-    else if (fileType === "plain") {
-      // transcriptText = fs.readFileSync(filePath, "utf8");
+    else if (fileType === "plain" || file.originalname.toLowerCase().endsWith(".txt")) {
+      transcriptText = dataBuffer.toString("utf8");
+    } else {
+      throw new ApiError(400, "Unsupported file type: " + fileType);
     }
-
-    else {
-      throw new ApiError(400, "Unsupported file type");
-    }
-
-    // Cleanup temporary file
-    // fs.unlinkSync(filePath);
 
     return {
       fileName: file.originalname,
@@ -83,9 +74,8 @@ const uploadTranscriptOfMeeting = async (file) => {
     };
   } catch (error) {
     console.error("Transcript extraction failed:", error);
-    throw new ApiError(500, "Failed to extract transcript");
+    throw new ApiError(500, "Failed to extract transcript: " + error.message);
   }
 };
-
 
 export { uploadAudioOfMeeting, uploadTranscriptOfMeeting };

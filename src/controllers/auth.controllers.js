@@ -35,7 +35,7 @@ export const googleAuthCallback = asyncHandler(async (req, res) => {
     authCredentials
   );
   const tokenData = tokenResponse.data;
-//   console.log(tokenData);
+  //   console.log(tokenData);
   const accessToken = tokenData.access_token;
   // Fetch user info
   const userInfoResponse = await axios.get(
@@ -47,7 +47,7 @@ export const googleAuthCallback = asyncHandler(async (req, res) => {
     }
   );
   const userInfo = await userInfoResponse.data;
-//   console.log("User Info - ", userInfo);
+  //   console.log("User Info - ", userInfo);
   if (userInfo.hd !== "grazitti.com") {
     throw new ApiError(400, "Unauthorized Domain");
   }
@@ -73,7 +73,41 @@ export const googleAuthCallback = asyncHandler(async (req, res) => {
     sameSite: "Strict",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
-  res
-    .status(200)
-    .json(new ApiResponse(200, user, "Signup successfully!", accessTokenJWT));
+  // Redirect to frontend with token
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5174";
+  res.redirect(`${frontendUrl}?token=${accessTokenJWT}`);
+});
+
+// Get current user profile
+export const getCurrentUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select('-password -refreshToken');
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+  res.status(200).json(new ApiResponse(200, user, "User profile retrieved successfully"));
+});
+
+// Logout user
+export const logout = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user.id,
+    {
+      $unset: {
+        refreshToken: 1
+      }
+    },
+    {
+      new: true
+    }
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict"
+  };
+
+  res.status(200)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully"));
 });

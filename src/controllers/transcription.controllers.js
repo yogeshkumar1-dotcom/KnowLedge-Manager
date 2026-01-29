@@ -27,7 +27,7 @@ const createTranscript = asyncHandler(async (req, res) => {
     return res
       .status(200)
       .json(
-        new ApiResponse(200, transcript, "Transcription already completed")
+        new ApiResponse(200, { transcript }, "Transcription already completed")
       );
   }
 
@@ -37,8 +37,8 @@ const createTranscript = asyncHandler(async (req, res) => {
   }
   let transcriptText = "";
   transcriptText = req.transcriptText;
-  const fileExtension = fileName.split(".")[1]
-  if (fileExtension === "mp3" || fileExtension === "wav" || fileExtension === 'ogg') {
+  const fileExtension = fileName.split(".").pop().toLowerCase();
+  if (["mp3", "wav", "ogg", "m4a"].includes(fileExtension)) {
     transcriptText = await extractTranscript(fileName, transcript);
   }
 
@@ -54,10 +54,13 @@ const createTranscript = asyncHandler(async (req, res) => {
     keyPoints: notes.keyPoints,
   };
   transcript.notes = extractedNotes;
+  transcript.analytics = notes.analytics;
   transcript.notesCreated = true;
   await transcript.save();
   // Generate tasks from notes
   const tasksData = await generateTasksFromNotes(transcript, notes.actionItems);
+
+  console.log("Final response data:", { transcript, tasksData });
 
   res
     .status(200)
@@ -89,8 +92,9 @@ const getTranscript = asyncHandler(async (req, res) => {
         status: transcript.status,
         createdAt: transcript.createdAt,
         updatedAt: transcript.updatedAt,
-        transcript: transcript.status === "completed" ? transcript.text : null,
+        transcript: transcript.status === "completed" ? transcript.transcriptText : null,
         notes: transcript.status === "completed" ? transcript.notes : null,
+        analytics: transcript.status === "completed" ? transcript.analytics : null,
       },
       "Transcript fetched successfully"
     )
