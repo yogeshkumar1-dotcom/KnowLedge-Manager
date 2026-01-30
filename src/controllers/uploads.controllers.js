@@ -2,7 +2,8 @@ import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import { supabase } from "../utils/supabaseClient.js";
-import { Transcript } from "../models/transcript.models.js";
+import { Interview } from "../models/interview.models.js";
+import { extractAudioFromVideo } from "../utils/videoProcessor.js";
 import {
   uploadAudioOfMeeting,
   uploadTranscriptOfMeeting,
@@ -17,16 +18,38 @@ const uploadFiles = asyncHandler(async (req, res, next) => {
 
   let fileUrl,
     fileName = "",
-    transcriptText = "";
+    transcriptText = "",
+    processedBuffer = req.file.buffer;
 
-  // Upload based on file type
-  if (fileType === "audio") {
+  // Handle video files - extract audio first
+  if (fileType === "video") {
+    console.log("Processing video file...");
+    try {
+      processedBuffer = await extractAudioFromVideo(req.file.buffer, req.file.originalname);
+      const tempFileName = req.file.originalname.replace(/\.[^/.]+$/, ".wav");
+      
+      const mockAudioFile = {
+        buffer: processedBuffer,
+        originalname: tempFileName,
+        mimetype: 'audio/wav'
+      };
+      const { fileUrl: uploadedUrl, fileName: uploadedName } = await uploadAudioOfMeeting(mockAudioFile);
+      fileUrl = uploadedUrl;
+      fileName = uploadedName;
+    } catch (error) {
+      console.error("Video processing error:", error);
+      throw new ApiError(500, "Failed to process video file");
+    }
+  }
+  // Handle audio files
+  else if (fileType === "audio") {
     const { fileUrl: uploadedUrl, fileName: uploadedName } =
       await uploadAudioOfMeeting(req.file);
-    console.log("step six");
     fileUrl = uploadedUrl;
     fileName = uploadedName;
-  } else if (fileType === "application") {
+  }
+  // Handle document files
+  else if (fileType === "application") {
     const { fileName: uploadedName, transcriptText: transcriptedText } =
       await uploadTranscriptOfMeeting(req.file);
     fileName = uploadedName;
@@ -34,26 +57,25 @@ const uploadFiles = asyncHandler(async (req, res, next) => {
   } else {
     throw new ApiError(400, "Unsupported file type");
   }
-  // Create transcript record immediately
-  const transcript = await Transcript.create({
-    userId: req.body.userId, // comes from frontend auth/session
-    fileName,
-    status: "pending",
-  });
-  console.log("Transcript record created: ", transcript);
 
-  if (transcriptText.trim()) {
-    req.transcriptId = transcript._id;
-    req.transcriptText = transcriptText;
-    req.date = req.body.meetingDate;
-    next();
-  } else{ 
-    req.transcriptId = transcript._id;
-    req.fileUrl = fileUrl;
-    req.fileType = fileType;
-    req.date = req.body.meetingDate;
-    next();
-  }
+  // Create interview record for all file types
+  const interview = await Interview.create({
+    userId: req.body.userId,
+    candidateName: req.body.candidateName || "Unknown Candidate",
+    position: req.body.position || "Unknown Position",
+    interviewDate: req.body.meetingDate || new Date(),
+    fileName,
+    transcriptText,
+    status: transcriptText ? "processing" : "pending"
+  });
+
+  req.interviewId = interview._id;
+  req.transcriptText = transcriptText;
+  req.fileUrl = fileUrl;
+  req.fileType = fileType === "video" ? "audio" : fileType;
+  req.date = req.body.meetingDate;
+  
+  next();
 });
 
 export { uploadFiles };

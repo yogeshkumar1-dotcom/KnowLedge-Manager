@@ -5,6 +5,7 @@ import audioRoutes from "./routes/audio.routes.js";
 import transcriptionRoutes from "./routes/transcription.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import GrazittiRoutes from "./routes/grazittiRoutes.routes.js"
+import interviewRoutes from "./routes/interview.routes.js";
 import { scheduleWeeklyStatusEmails } from "./utils/weeklyStatusMail.js";
 import cors from "cors";
 dotenv.config();
@@ -22,6 +23,7 @@ app.use('/api/v1/upload', audioRoutes);
 app.use('/api/v1/transcripts', transcriptionRoutes)
 app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/grazitti', GrazittiRoutes)
+app.use('/api/v1/interviews', interviewRoutes)
 
 // Start the weekly email scheduler
 scheduleWeeklyStatusEmails()
