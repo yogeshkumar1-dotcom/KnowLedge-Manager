@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes.js";
-import audioRoutes from "./routes/audio.routes.js";
+import uploadRoutes from "./routes/upload.routes.js";
 import transcriptionRoutes from "./routes/transcription.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import GrazittiRoutes from "./routes/grazittiRoutes.routes.js"
@@ -18,7 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 app.use("/api/v1/auth", authRoutes)
-app.use('/api/v1/upload', audioRoutes);
+app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/transcripts', transcriptionRoutes)
 app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/grazitti', GrazittiRoutes)

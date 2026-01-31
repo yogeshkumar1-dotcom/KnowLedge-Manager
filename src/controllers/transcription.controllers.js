@@ -38,7 +38,7 @@ const createTranscript = asyncHandler(async (req, res) => {
   let transcriptText = "";
   transcriptText = req.transcriptText;
   const fileExtension = fileName.split(".").pop().toLowerCase();
-  if (["mp3", "wav", "ogg", "m4a"].includes(fileExtension)) {
+  if (["mp3", "wav", "ogg", "m4a", "mp4", "mov", "avi"].includes(fileExtension)) {
     transcriptText = await extractTranscript(fileName, transcript);
   }
 
@@ -54,7 +54,51 @@ const createTranscript = asyncHandler(async (req, res) => {
     keyPoints: notes.keyPoints,
   };
   transcript.notes = extractedNotes;
-  transcript.analytics = notes.analytics;
+  // Flatten the response for Mongoose model
+  const analyticsData = notes.analytics || {};
+  const speech = analyticsData.speechMechanics || {};
+  const lang = analyticsData.languageQuality || {};
+  const emotion = analyticsData.emotionalIntelligence || {};
+  const flu = analyticsData.fluency || {};
+  const scores = analyticsData.scores || {};
+  const insights = analyticsData.insights || {};
+
+  transcript.analytics = {
+    // Speech
+    clarityPronunciation: speech.clarityPronunciation || 0,
+    speechRate: speech.speechRate || 0,
+    volumeConsistency: speech.volumeConsistency || 0,
+    voiceModulation: speech.voiceModulation || 0,
+    pausesAndFillers: speech.pausesAndFillers || 0,
+
+    // Language
+    vocabularyRichness: lang.vocabularyRichness || 0,
+    grammarAccuracy: lang.grammarAccuracy || 0,
+    coherence: lang.coherence || 0,
+    relevance: lang.relevance || 0,
+    messageClarity: lang.messageClarity || 0,
+
+    // Emotional
+    emotionalTone: emotion.emotionalTone || 'Neutral',
+    confidenceLevel: emotion.confidenceLevel || 0,
+    engagement: emotion.engagement || 0,
+    empathyWarmth: emotion.empathyWarmth || 0,
+
+    // Fluency
+    stutteringRepetition: flu.stutteringRepetition || 0,
+    sentenceCompletion: flu.sentenceCompletion || 0,
+    flow: flu.flow || 0,
+
+    // Scores
+    fluencyScore: scores.fluencyScore || 0,
+    confidenceScore: scores.confidenceScore || 0,
+    clarityScore: scores.clarityScore || 0,
+    overallScore: scores.overallScore || 0,
+
+    // Insights
+    weakAreas: insights.weakAreas || [],
+    strengths: insights.strengths || []
+  };
   transcript.notesCreated = true;
   await transcript.save();
   // Generate tasks from notes

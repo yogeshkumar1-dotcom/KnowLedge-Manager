@@ -3,15 +3,17 @@ import multer from "multer";
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
-  //   fileFilter: (req, file, cb) => {
-  //     // Accept only audio files
-  //     if (file.mimetype.startsWith('audio/')) {
-  //       return cb(new Error('Only audio files are allowed'));
-  //     }
-  //     cb(null, true);
-  //   },
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit for video support
+  fileFilter: (req, file, cb) => {
+    // Accept audio and video files
+    const allowedTypes = ['audio/', 'video/', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    const isAllowed = allowedTypes.some(type => file.mimetype.startsWith(type) || file.mimetype === type);
+    
+    if (!isAllowed) {
+      return cb(new Error('Only audio, video, PDF, DOCX, and TXT files are allowed'));
+    }
+    cb(null, true);
+  },
 });
-
 
 export default upload;

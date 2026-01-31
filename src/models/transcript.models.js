@@ -63,10 +63,40 @@ const transcriptSchema = new mongoose.Schema(
       keyPoints: [String],
     },
     analytics: {
-      consistency: { type: Number, default: 0 },
-      replicacy: { type: Number, default: 0 },
-      logicalThinking: { type: Number, default: 0 },
-      relatableAnswers: { type: Number, default: 0 },
+      // Speech & Voice
+      clarityPronunciation: { type: Number, default: 0 },
+      speechRate: { type: Number, default: 0 },
+      volumeConsistency: { type: Number, default: 0 },
+      voiceModulation: { type: Number, default: 0 },
+      pausesFillers: { type: Number, default: 0 },
+
+      // Content & Structure
+      vocabularyRichness: { type: Number, default: 0 },
+      grammarAccuracy: { type: Number, default: 0 },
+      coherence: { type: Number, default: 0 },
+      relevance: { type: Number, default: 0 },
+      clarityOfMessage: { type: Number, default: 0 },
+
+      // Soft Skills & Tone
+      emotionalTone: { type: String, default: "neutral" },
+      confidenceLevel: { type: Number, default: 0 },
+      engagement: { type: Number, default: 0 },
+      empathyWarmth: { type: Number, default: 0 },
+
+      // Fluency
+      stutteringRepetition: { type: Number, default: 0 },
+      sentenceCompletion: { type: Number, default: 0 },
+      flow: { type: Number, default: 0 },
+
+      // Scores
+      fluencyScore: { type: Number, default: 0 },
+      confidenceScore: { type: Number, default: 0 },
+      clarityScore: { type: Number, default: 0 },
+      overallScore: { type: Number, default: 0 },
+
+      // Insights
+      weakAreas: [String],
+      strengths: [String],
     },
     notesCreated: { type: Boolean, default: false },
     externalProvider: { type: String, default: "assemblyai" },

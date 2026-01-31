@@ -8,11 +8,19 @@ import axios from "axios";
 export const googleAuthUrl = asyncHandler(async (req, res) => {
   const redirectUrl = process.env.REDIRECT_URL;
   const clientId = process.env.GOOGLE_CLIENT_ID;
+
+  if (!redirectUrl || !clientId) {
+    console.error("Missing Google OAuth environment variables:", { redirectUrl, clientId });
+    throw new ApiError(500, "Google OAuth is not configured correctly");
+  }
+
   const scope = [
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/userinfo.email",
   ].join(" ");
+
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUrl}&scope=${scope}&access_type=offline&prompt=consent&hd=grazitti.com`;
+
   res.redirect(authUrl);
 });
 
@@ -46,10 +54,14 @@ export const googleAuthCallback = asyncHandler(async (req, res) => {
       },
     }
   );
-  const userInfo = await userInfoResponse.data;
-  //   console.log("User Info - ", userInfo);
-  if (userInfo.hd !== "grazitti.com") {
-    throw new ApiError(400, "Unauthorized Domain");
+  const userInfo = userInfoResponse.data;
+  console.log("Logged in user:", userInfo.email);
+
+  // Check domain - be flexible if hd is missing but email domain matches
+  const domain = userInfo.hd || (userInfo.email && userInfo.email.split('@')[1]);
+  if (domain !== "grazitti.com") {
+    console.warn(`Unauthorized domain attempt: ${domain} (Email: ${userInfo.email})`);
+    throw new ApiError(400, "Unauthorized Domain. Please use your @grazitti.com account.");
   }
   let user = await User.findOne({ email: userInfo.email });
   if (!user) {
@@ -74,7 +86,7 @@ export const googleAuthCallback = asyncHandler(async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
   // Redirect to frontend with token
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5174";
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   res.redirect(`${frontendUrl}?token=${accessTokenJWT}`);
 });
 
