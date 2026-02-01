@@ -6,6 +6,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { supabase } from "../utils/supabaseClient.js";
 import { generateMeetingNotes } from "../services/meetingNote.services.js";
 import { generateTasksFromNotes } from "../services/task.services.js";
+import { analyzeCandidateAnswers } from "../services/candidateAnalysis.services.js";
 import { Task } from "../models/task.models.js";
 import { extractTranscript } from "../utils/extractTranscriptFromAudio.js";
 
@@ -47,6 +48,7 @@ const createTranscript = asyncHandler(async (req, res) => {
   transcript.transcriptText = transcriptText;
   transcript.status = "completed";
   const notes = await generateMeetingNotes(transcriptText, req.date);
+  const candidateAnalysis = await analyzeCandidateAnswers(transcriptText, req.date);
   transcript.transcriptTitle = notes.title;
   //   console.log("Generated Notes: ", notes);
   let extractedNotes = {
@@ -56,6 +58,8 @@ const createTranscript = asyncHandler(async (req, res) => {
   transcript.notes = extractedNotes;
   // Flatten the response for Mongoose model
   const analyticsData = notes.analytics || {};
+  const candidateData = candidateAnalysis.answerAnalysis || {};
+  const feedbackData = candidateAnalysis.detailedFeedback || {};
   const speech = analyticsData.speechMechanics || {};
   const lang = analyticsData.languageQuality || {};
   const emotion = analyticsData.emotionalIntelligence || {};
@@ -97,7 +101,20 @@ const createTranscript = asyncHandler(async (req, res) => {
 
     // Insights
     weakAreas: insights.weakAreas || [],
-    strengths: insights.strengths || []
+    strengths: insights.strengths || [],
+
+    // Candidate Answer Analysis
+    overallCorrectnessScore: candidateData.overallCorrectnessScore || 0,
+    answerRelevance: candidateData.answerRelevance || 0,
+    answerCompleteness: candidateData.answerCompleteness || 0,
+    technicalAccuracy: candidateData.technicalAccuracy || 0,
+    problemSolving: candidateData.problemSolving || 0,
+    answerCommunicationClarity: candidateData.communicationClarity || 0,
+    answerQuality: candidateData.answerQuality || 0,
+    strongAnswers: feedbackData.strongAnswers || [],
+    weakAnswers: feedbackData.weakAnswers || [],
+    improvementAreas: feedbackData.improvementAreas || [],
+    answerInsights: feedbackData.keyInsights || []
   };
   transcript.notesCreated = true;
   await transcript.save();
@@ -146,7 +163,7 @@ const getTranscript = asyncHandler(async (req, res) => {
 });
 
 const getRecentTranscripts = asyncHandler(async (req, res) => {
-  let { limit, sort, page } = req.query;
+  let { limit, sort, page, search } = req.query;
 
   // Convert query params to numbers or set defaults
   const pageNum = Number(page) > 0 ? Number(page) : 1;
@@ -156,14 +173,25 @@ const getRecentTranscripts = asyncHandler(async (req, res) => {
   // Calculate how many documents to skip
   const skip = (pageNum - 1) * limitNum;
 
+  // Build query
+  let query = {};
+  if (search) {
+    query = {
+      $or: [
+        { fileName: { $regex: search, $options: 'i' } },
+        { transcriptTitle: { $regex: search, $options: 'i' } }
+      ]
+    };
+  }
+
   // Fetch data
-  const transcripts = await Transcript.find()
+  const transcripts = await Transcript.find(query)
     .sort({ createdAt: sortOrder })
     .skip(skip)
     .limit(limitNum);
 
   // Count total documents for pagination info
-  const total = await Transcript.countDocuments();
+  const total = await Transcript.countDocuments(query);
 
   const totalPages = Math.ceil(total / limitNum);
 

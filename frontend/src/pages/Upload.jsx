@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,6 +24,36 @@ const Upload = () => {
   const [message, setMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [result, setResult] = useState(null);
+  const resultsRef = useRef(null);
+
+  const getFileNameWithoutExtension = (fileName) => {
+    if (!fileName) return 'Unknown File';
+    return fileName.replace(/\.[^/.]+$/, '');
+  };
+
+  useEffect(() => {
+    if (result) {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [result]);
+
+  // Fetch the most recent completed transcript on component mount
+  useEffect(() => {
+    const fetchLatestAnalysis = async () => {
+      try {
+        const response = await axiosInstance.get('/api/v1/transcripts?limit=10');
+        const transcripts = response.data.data?.transcripts || [];
+        const latestCompleted = transcripts.find(t => t.status === 'completed' && t.analytics);
+        if (latestCompleted) {
+          setResult({ transcript: latestCompleted });
+        }
+      } catch (error) {
+        console.error('Error fetching latest analysis:', error);
+      }
+    };
+
+    fetchLatestAnalysis();
+  }, []);
 
   const handleDrag = (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -204,11 +234,13 @@ const Upload = () => {
 
           {/* Results Section */}
           {result && (
-            <div className="space-y-8 animate-fadeIn">
+            <div ref={resultsRef} className="space-y-8 animate-fadeIn">
               <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
                 <div className="flex items-center space-x-3">
                   <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
-                  <h2 className="text-2xl font-black text-gray-900 tracking-tight">AI Summary</h2>
+                  <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                    AI Summary for {getFileNameWithoutExtension(result.transcript?.fileName)}
+                  </h2>
                 </div>
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 italic text-gray-700 leading-relaxed">
                   "{result.transcript?.notes?.summary || 'No summary available.'}"

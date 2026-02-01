@@ -20,6 +20,9 @@ const Dashboard = () => {
   });
   const [usageData, setUsageData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchedTranscript, setSearchedTranscript] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -57,6 +60,20 @@ const Dashboard = () => {
 
     fetchDashboardData();
   }, []);
+
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) return;
+    setSearchLoading(true);
+    try {
+      const response = await axiosInstance.get(`/api/v1/transcripts?search=${encodeURIComponent(searchTerm)}&limit=1`);
+      const transcripts = response.data.data?.transcripts || [];
+      setSearchedTranscript(transcripts.length > 0 ? transcripts[0] : null);
+    } catch (error) {
+      console.error('Error searching transcripts:', error);
+      setSearchedTranscript(null);
+    }
+    setSearchLoading(false);
+  };
 
   const StatCard = ({ title, value, icon: Icon, color, subValue, max }) => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md">
@@ -99,6 +116,21 @@ const Dashboard = () => {
           <p className="mt-1 text-lg text-gray-500 font-medium">Here's your communication performance overview.</p>
         </div>
         <div className="flex items-center space-x-3 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
+          <input
+            type="text"
+            placeholder="Search recording name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="px-4 py-2 border-none rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
+          <button
+            onClick={handleSearch}
+            disabled={searchLoading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
+          >
+            {searchLoading ? 'Searching...' : 'Search'}
+          </button>
           <button className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
             Generate Report
           </button>
@@ -136,6 +168,58 @@ const Dashboard = () => {
           subValue="%"
         />
       </div>
+
+      {/* Searched Recording Analysis */}
+      {searchedTranscript && (
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Recording Analysis</h2>
+              <p className="text-sm text-gray-500 font-medium">{searchedTranscript.fileName || searchedTranscript.transcriptTitle}</p>
+            </div>
+            <button
+              onClick={() => setSearchedTranscript(null)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-blue-50 p-4 rounded-xl">
+              <p className="text-sm font-semibold text-blue-600">Overall Score</p>
+              <p className="text-2xl font-bold text-blue-900">{searchedTranscript.analytics?.overallScore || 0}/100</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-xl">
+              <p className="text-sm font-semibold text-green-600">Clarity</p>
+              <p className="text-2xl font-bold text-green-900">{searchedTranscript.analytics?.clarityScore || 0}/100</p>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-xl">
+              <p className="text-sm font-semibold text-purple-600">Confidence</p>
+              <p className="text-2xl font-bold text-purple-900">{searchedTranscript.analytics?.confidenceScore || 0}/100</p>
+            </div>
+            <div className="bg-orange-50 p-4 rounded-xl">
+              <p className="text-sm font-semibold text-orange-600">Fluency</p>
+              <p className="text-2xl font-bold text-orange-900">{searchedTranscript.analytics?.fluencyScore || 0}/100</p>
+            </div>
+          </div>
+          {searchedTranscript.notes && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
+              <p className="text-gray-600">{searchedTranscript.notes.summary}</p>
+              {searchedTranscript.notes.keyPoints && searchedTranscript.notes.keyPoints.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-md font-semibold text-gray-900 mb-2">Key Points</h4>
+                  <ul className="list-disc list-inside text-gray-600">
+                    {searchedTranscript.notes.keyPoints.map((point, index) => (
+                      <li key={index}>{point}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Engagement Graph */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">

@@ -231,6 +231,60 @@ const CommunicationAnalytics = ({ data }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Candidate Answer Analysis */}
+            {(analytics.overallCorrectnessScore || analytics.answerRelevance) && (
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex items-center mb-6">
+                        <CheckBadgeIcon className="h-6 w-6 text-indigo-500 mr-2" />
+                        <h3 className="text-lg font-bold text-gray-900">Answer Analysis</h3>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <ScoreCard title="Correctness" value={analytics.overallCorrectnessScore} max={10} color="text-indigo-600" bg="bg-indigo-50" />
+                        <ScoreCard title="Relevance" value={analytics.answerRelevance} max={10} color="text-blue-600" bg="bg-blue-50" />
+                        <ScoreCard title="Completeness" value={analytics.answerCompleteness} max={10} color="text-green-600" bg="bg-green-50" />
+                        <ScoreCard title="Quality" value={analytics.answerQuality} max={10} color="text-purple-600" bg="bg-purple-50" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <div className="flex items-center mb-3 text-green-600">
+                                <CheckBadgeIcon className="h-5 w-5 mr-2" />
+                                <span className="font-bold text-sm uppercase tracking-wide">Strong Answers</span>
+                            </div>
+                            <ul className="space-y-2">
+                                {analytics.strongAnswers && analytics.strongAnswers.length > 0 ? (
+                                    analytics.strongAnswers.map((answer, i) => (
+                                        <li key={i} className="flex items-start text-sm text-gray-700 bg-green-50 p-2 rounded-lg border border-green-100">
+                                            <span className="text-green-500 mr-2">✓</span>
+                                            {answer}
+                                        </li>
+                                    ))
+                                ) : (
+                                    <li className="text-sm text-gray-500 italic">No strong answers identified.</li>
+                                )}
+                            </ul>
+                        </div>
+                        <div>
+                            <div className="flex items-center mb-3 text-red-600">
+                                <ExclamationCircleIcon className="h-5 w-5 mr-2" />
+                                <span className="font-bold text-sm uppercase tracking-wide">Areas for Improvement</span>
+                            </div>
+                            <ul className="space-y-2">
+                                {analytics.improvementAreas && analytics.improvementAreas.length > 0 ? (
+                                    analytics.improvementAreas.map((area, i) => (
+                                        <li key={i} className="flex items-start text-sm text-gray-700 bg-red-50 p-2 rounded-lg border border-red-100">
+                                            <span className="text-red-500 mr-2">•</span>
+                                            {area}
+                                        </li>
+                                    ))
+                                ) : (
+                                    <li className="text-sm text-gray-500 italic">No improvement areas identified.</li>
+                                )}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
