@@ -7,7 +7,7 @@ import {
     ChevronRightIcon
 } from '@heroicons/react/24/outline';
 
-const ActivitiesList = ({ onSelectTranscript }) => {
+const ActivitiesList = ({ onSelectTranscript, refreshTrigger }) => {
     const [activities, setActivities] = useState([]);
     const [filteredActivities, setFilteredActivities] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -16,7 +16,7 @@ const ActivitiesList = ({ onSelectTranscript }) => {
 
     useEffect(() => {
         fetchHistory();
-    }, []);
+    }, [refreshTrigger]);
 
     useEffect(() => {
         filterActivities();

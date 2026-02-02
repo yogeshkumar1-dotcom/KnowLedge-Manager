@@ -25,6 +25,7 @@ const Upload = () => {
   const [dragActive, setDragActive] = useState(false);
   const [results, setResults] = useState([]);
   const [selectedResult, setSelectedResult] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const resultsRef = useRef(null);
 
   const getFileNameWithoutExtension = (fileName) => {
@@ -128,6 +129,7 @@ const Upload = () => {
         if (response.data.data.length === 1) {
           setSelectedResult(response.data.data[0]);
         }
+        setRefreshTrigger(prev => prev + 1);
         setMessage('✅ Processing completed successfully!');
         setFiles([]);
       }
@@ -187,7 +189,7 @@ const Upload = () => {
                     <input type="file" multiple className="sr-only" onChange={handleFileChange} accept="audio/*,video/*" />
                   </label>
                   <p className="mt-2 text-xs text-gray-500">
-                    Supported formats: MP3, WAV, OGG, M4A, MP4, MOV, AVI (Max 500MB)
+                    Supported formats: MP3, WAV, OGG, M4A, MP4, MOV, AVI (Max 1024MB)
                   </p>
                 </div>
                 <div className="flex justify-center space-x-2">
@@ -355,7 +357,7 @@ const Upload = () => {
                 Recent History
               </h2>
             </div>
-            <ActivitiesList onSelectTranscript={(t) => { setResults([{ transcript: t }]); setSelectedResult({ transcript: t }); }} />
+            <ActivitiesList onSelectTranscript={(t) => { setResults([{ transcript: t }]); setSelectedResult({ transcript: t }); }} refreshTrigger={refreshTrigger} />
           </div>
 
           <div className="bg-indigo-600 p-8 rounded-3xl text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">

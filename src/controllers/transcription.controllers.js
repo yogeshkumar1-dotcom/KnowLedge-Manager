@@ -166,9 +166,8 @@ const createTranscript = asyncHandler(async (req, res) => {
     results.push({ transcript, tasksData });
   }
 
-<<<<<<< HEAD
   console.log("Final response data:", results);
-=======
+
   if (transcript.status === "completed") {
     return res
       .status(200)

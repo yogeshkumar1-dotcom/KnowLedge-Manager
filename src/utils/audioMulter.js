@@ -3,7 +3,7 @@ import multer from "multer";
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit for video support
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1024MB limit for video support
   fileFilter: (req, file, cb) => {
     // Accept audio and video files
     const allowedTypes = ['audio/', 'video/', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
