@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
+// import uploadRoutes from "./routes/audio.routes.js";
+
 import transcriptionRoutes from "./routes/transcription.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import GrazittiRoutes from "./routes/grazittiRoutes.routes.js"

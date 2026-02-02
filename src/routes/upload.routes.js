@@ -15,11 +15,11 @@ router.get("/test", (req, res) => {
 });
 
 // Main upload route that handles both video and audio
-// 1. Multer processes the file and saves in memory
+// 1. Multer processes the files and saves in memory
 // 2. uploadFiles handles Supabase upload (and video-to-audio extraction if needed)
 // 3. createTranscript handles AI transcription and analysis
 router.post("/file", (req, res, next) => {
-  upload.single("file")(req, res, (err) => {
+  upload.array("files", 10)(req, res, (err) => {
     if (err) {
       console.error('Multer error:', err);
       return res.status(400).json({

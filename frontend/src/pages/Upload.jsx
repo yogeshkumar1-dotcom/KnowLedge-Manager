@@ -17,13 +17,14 @@ import ActivitiesList from '../components/ActivitiesList';
 const Upload = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [message, setMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
-  const [result, setResult] = useState(null);
+  const [results, setResults] = useState([]);
+  const [selectedResult, setSelectedResult] = useState(null);
   const resultsRef = useRef(null);
 
   const getFileNameWithoutExtension = (fileName) => {
@@ -31,11 +32,22 @@ const Upload = () => {
     return fileName.replace(/\.[^/.]+$/, '');
   };
 
+  const getTruncatedFileName = (fileName) => {
+    if (!fileName) return 'Unknown File';
+    const lastDot = fileName.lastIndexOf('.');
+    if (lastDot === -1) return fileName;
+    const name = fileName.substring(0, lastDot);
+    const ext = fileName.substring(lastDot);
+    if (name.length <= 30) return fileName;
+    const truncated = name.substring(0, 40) + '...' + ext;
+    return truncated;
+  };
+
   useEffect(() => {
-    if (result) {
+    if (results.length > 0) {
       resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [result]);
+  }, [results]);
 
   // Fetch the most recent completed transcript on component mount
   useEffect(() => {
@@ -45,7 +57,8 @@ const Upload = () => {
         const transcripts = response.data.data?.transcripts || [];
         const latestCompleted = transcripts.find(t => t.status === 'completed' && t.analytics);
         if (latestCompleted) {
-          setResult({ transcript: latestCompleted });
+          setResults([{ transcript: latestCompleted }]);
+          setSelectedResult({ transcript: latestCompleted });
         }
       } catch (error) {
         console.error('Error fetching latest analysis:', error);
@@ -66,17 +79,17 @@ const Upload = () => {
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
-      if (isValidFileType(droppedFile)) { setFile(droppedFile); setMessage(''); }
+      if (isValidFileType(droppedFile)) { 
+        setFiles(prev => [...prev, droppedFile]); 
+        setMessage(''); 
+      }
       else setMessage('Please select a valid video or audio file.');
     }
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (isValidFileType(selectedFile)) { setFile(selectedFile); setMessage(''); }
-      else setMessage('Please select a valid video or audio file.');
-    }
+    const selectedFiles = Array.from(e.target.files);
+    setFiles(prev => [...prev, ...selectedFiles]);
   };
 
   const isValidFileType = (file) => {
@@ -91,11 +104,13 @@ const Upload = () => {
   };
 
   const handleUpload = async () => {
-    if (!file) { setMessage('Please select a file first'); return; }
+    if (!files || files.length === 0) { setMessage('Please select files first'); return; }
     setUploading(true); setUploadProgress(0); setMessage('');
 
     const formData = new FormData();
-    formData.append('file', file);
+    files.forEach(file => {
+      formData.append('files', file);
+    });
     formData.append('userId', user?._id || user?.id || '');
     formData.append('meetingDate', meetingDate);
 
@@ -109,9 +124,12 @@ const Upload = () => {
       });
 
       if (response.data && response.data.data) {
-        setResult(response.data.data);
+        setResults(response.data.data);
+        if (response.data.data.length === 1) {
+          setSelectedResult(response.data.data[0]);
+        }
         setMessage('✅ Processing completed successfully!');
-        setFile(null);
+        setFiles([]);
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -166,7 +184,7 @@ const Upload = () => {
                   <label className="cursor-pointer">
                     <span className="text-xl font-black text-gray-900 block">Drag & Drop File</span>
                     <span className="text-sm text-gray-500 font-medium">or click here to browse files</span>
-                    <input type="file" className="sr-only" onChange={handleFileChange} accept="audio/*,video/*" />
+                    <input type="file" multiple className="sr-only" onChange={handleFileChange} accept="audio/*,video/*" />
                   </label>
                   <p className="mt-2 text-xs text-gray-500">
                     Supported formats: MP3, WAV, OGG, M4A, MP4, MOV, AVI (Max 500MB)
@@ -180,18 +198,22 @@ const Upload = () => {
               </div>
             </div>
 
-            {file && (
-              <div className="flex items-center p-4 bg-blue-50 rounded-2xl border border-blue-100 animate-slideUp">
-                <DocumentIcon className="h-10 w-10 text-blue-500 mr-4" />
-                <div className="flex-1">
-                  <p className="font-bold text-gray-900 truncate">{file.name}</p>
-                  <p className="text-xs text-blue-600 font-bold">Ready to analyze • {(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                </div>
-                <button onClick={() => setFile(null)} className="p-2 hover:bg-blue-100 rounded-full text-blue-400">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+            {files.length > 0 && (
+              <div className="space-y-2">
+                {files.map((file, index) => (
+                  <div key={index} className="flex items-center p-3 bg-blue-50 rounded-2xl border border-blue-100">
+                    <DocumentIcon className="h-8 w-8 text-blue-500 mr-3" />
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-900">{getTruncatedFileName(file.name)}</p>
+                      <p className="text-xs text-blue-600 font-bold">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                    </div>
+                    <button onClick={() => setFiles(files.filter((_, i) => i !== index))} className="p-2 hover:bg-blue-100 rounded-full text-blue-400">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -215,7 +237,7 @@ const Upload = () => {
 
             <button
               onClick={handleUpload}
-              disabled={!file || uploading}
+              disabled={files.length === 0 || uploading}
               className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center space-x-3"
             >
               {uploading ? (
@@ -233,27 +255,93 @@ const Upload = () => {
           </div>
 
           {/* Results Section */}
-          {result && (
+          {results.length > 0 && (
             <div ref={resultsRef} className="space-y-8 animate-fadeIn">
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
-                <div className="flex items-center space-x-3">
-                  <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
-                  <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-                    AI Summary for {getFileNameWithoutExtension(result.transcript?.fileName)}
-                  </h2>
-                </div>
-                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 italic text-gray-700 leading-relaxed">
-                  "{result.transcript?.notes?.summary || 'No summary available.'}"
-                </div>
-              </div>
+              {results.length === 1 ? (
+                <>
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                      <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                        AI Summary for {getFileNameWithoutExtension(results[0].transcript?.fileName)}
+                      </h2>
+                    </div>
+                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 italic text-gray-700 leading-relaxed">
+                      "{results[0].transcript?.notes?.summary || 'No summary available.'}"
+                    </div>
+                  </div>
 
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100"style={{width:'1000px'}}>
-                <div className="flex items-center space-x-3 mb-8">
-                  <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
-                  <h2 className="text-2xl font-black text-gray-900 tracking-tight">Communication Metrics</h2>
-                </div>
-                <CommunicationAnalytics data={result.transcript} />
-              </div>
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100" style={{width:'1000px'}}>
+                    <div className="flex items-center space-x-3 mb-8">
+                      <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                      <h2 className="text-2xl font-black text-gray-900 tracking-tight">Communication Metrics</h2>
+                    </div>
+                    <CommunicationAnalytics data={results[0].transcript} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                      <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                        Analysis Results
+                      </h2>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-auto border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-4 py-3 text-left text-sm font-black text-gray-600 uppercase tracking-widest">Person Name</th>
+                            <th className="px-4 py-3 text-left text-sm font-black text-gray-600 uppercase tracking-widest">Overall Score</th>
+                            <th className="px-4 py-3 text-left text-sm font-black text-gray-600 uppercase tracking-widest">View Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {results.map((result, index) => (
+                            <tr key={index} className="border-t border-gray-100 hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-900 font-bold">{getFileNameWithoutExtension(result.transcript?.fileName)}</td>
+                              <td className="px-4 py-3 text-gray-900 font-bold">{result.transcript?.analytics?.overallScore || 'N/A'}</td>
+                              <td className="px-4 py-3">
+                                <button 
+                                  onClick={() => setSelectedResult(result)}
+                                  className="text-blue-600 hover:text-blue-800 font-bold underline"
+                                >
+                                  View Details
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {selectedResult && (
+                    <>
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                          <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                            AI Summary for {getFileNameWithoutExtension(selectedResult.transcript?.fileName)}
+                          </h2>
+                        </div>
+                        <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 italic text-gray-700 leading-relaxed">
+                          "{selectedResult.transcript?.notes?.summary || 'No summary available.'}"
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100" style={{width:'1000px'}}>
+                        <div className="flex items-center space-x-3 mb-8">
+                          <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                          <h2 className="text-2xl font-black text-gray-900 tracking-tight">Communication Metrics</h2>
+                        </div>
+                        <CommunicationAnalytics data={selectedResult.transcript} />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -267,7 +355,7 @@ const Upload = () => {
                 Recent History
               </h2>
             </div>
-            <ActivitiesList onSelectTranscript={(t) => setResult({ transcript: t })} />
+            <ActivitiesList onSelectTranscript={(t) => { setResults([{ transcript: t }]); setSelectedResult({ transcript: t }); }} />
           </div>
 
           <div className="bg-indigo-600 p-8 rounded-3xl text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">

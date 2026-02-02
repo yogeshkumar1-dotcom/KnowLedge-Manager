@@ -6,7 +6,7 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit for video support
   fileFilter: (req, file, cb) => {
     // Accept audio and video files
-    const allowedTypes = ['audio/', 'video/', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    const allowedTypes = ['audio/', 'video/', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     const isAllowed = allowedTypes.some(type => file.mimetype.startsWith(type) || file.mimetype === type);
     
     if (!isAllowed) {
