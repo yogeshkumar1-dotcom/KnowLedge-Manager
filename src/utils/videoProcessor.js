@@ -28,6 +28,8 @@ export const extractAudioFromVideo = (videoBuffer, originalName) => {
       .audioCodec('pcm_s16le')
       .audioFrequency(16000)
       .audioChannels(1)
+      .audioBitrate('32k') // Lower bitrate for faster processing
+      .noVideo() // Skip video processing
       .on('end', () => {
         try {
           const audioBuffer = fs.readFileSync(audioPath);

@@ -22,6 +22,11 @@ const interviewSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  fileHash: {
+    type: String,
+    required: true,
+    index: true
+  },
   transcriptText: {
     type: String,
     default: ''
@@ -30,6 +35,14 @@ const interviewSchema = new mongoose.Schema({
     type: Number,
     min: 0,
     max: 10
+  },
+  interviewer_name: {
+    type: String,
+    default: null
+  },
+  interviewee_name: {
+    type: String,
+    default: null
   },
   summary: {
     verdict: String,
@@ -73,6 +86,19 @@ const interviewSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'processing', 'scored', 'reviewed'],
     default: 'pending'
+  },
+  assemblyai_transcript_id: {
+    type: String,
+    default: null
+  },
+  assemblyai_analysis: {
+    analysis: String,
+    confidence: Number,
+    source: String
+  },
+  assemblyai_insights: {
+    insights: String,
+    source: String
   }
 }, {
   timestamps: true

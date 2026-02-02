@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { scoreInterview } from "../services/interviewScoring.services.js";
+import { analyzeInterviewWithAssemblyAI, getTranscriptInsights } from "../services/assemblyAIAnalysis.services.js";
 import { extractTranscript } from "../utils/extractTranscriptFromAudio.js";
 
 const createTranscript = asyncHandler(async (req, res) => {
@@ -28,32 +29,64 @@ const createTranscript = asyncHandler(async (req, res) => {
   if (!fileName) {
     throw new ApiError(400, "No file associated with this interview");
   }
+  console.log("Extracting transcript for file:", fileName);
   
   let transcriptText = req.transcriptText || "";
+  let speechMetrics = {};
+  let assemblyaiTranscriptId = null;
   const fileExtension = fileName.split(".").pop().toLowerCase();
   if (["mp3", "wav", "ogg", "m4a"].includes(fileExtension)) {
-    transcriptText = await extractTranscript(fileName, interview);
+    const result = await extractTranscript(fileName, interview);
+    transcriptText = result.transcriptText;
+    speechMetrics = result.speechMetrics;
+    assemblyaiTranscriptId = result.speechMetrics?.assemblyaiTranscriptId;
   }
-  return res.json({ message: "Transcript extraction in progress", data: transcriptText });
+  // return res.json({ message: "Transcript extraction in progress", data: transcriptText });
   // Update interview with transcript
   interview.transcriptText = transcriptText;
   interview.status = "processing";
   await interview.save();
 
-  // Score the interview
+  // Score the interview with both Gemini and AssemblyAI
   let interviewScore = null;
+  let assemblyaiAnalysis = null;
+  let assemblyaiInsights = null;
+  
   try {
+    // Gemini-based scoring
     const scoring = await scoreInterview(transcriptText);
-    console.log("Interview Scoring Result: ", scoring);
+    console.log("Gemini scoring completed");
+    
+    // AssemblyAI LLM analysis (if transcript ID available)
+    if (assemblyaiTranscriptId) {
+      try {
+        assemblyaiAnalysis = await analyzeInterviewWithAssemblyAI(assemblyaiTranscriptId);
+        assemblyaiInsights = await getTranscriptInsights(assemblyaiTranscriptId);
+        console.log("AssemblyAI analysis completed");
+      } catch (error) {
+        console.error('AssemblyAI analysis failed:', error.message);
+      }
+    }
+    
     const updatedInterview = await Interview.findByIdAndUpdate(
       interviewId,
       {
         overall_communication_score: scoring.overall_communication_score,
+        interviewer_name: scoring.interviewer_name,
+        interviewee_name: scoring.interviewee_name,
         summary: scoring.summary,
-        speech_metrics: scoring.speech_metrics,
+        speech_metrics: speechMetrics.speech_metrics || {
+          words_per_minute: 0,
+          pause_analysis: { long_pauses_detected: false, average_pause_duration_seconds: 0 },
+          filler_words: { total_count: 0, fillers_per_minute: 0, most_common_fillers: [] },
+          repetition: { repeated_words_detected: false, examples: [] }
+        },
         language_quality: scoring.language_quality,
         communication_skills: scoring.communication_skills,
         coaching_feedback: scoring.coaching_feedback,
+        assemblyai_transcript_id: assemblyaiTranscriptId,
+        assemblyai_analysis: assemblyaiAnalysis,
+        assemblyai_insights: assemblyaiInsights,
         status: 'scored'
       },
       { new: true }
