@@ -36,6 +36,48 @@ const createTranscript = asyncHandler(async (req, res) => {
   if (!fileName) {
     throw new ApiError(400, "No file associated with this transcript");
   }
+
+  // Check if the same file has already been processed
+  const existingTranscript = await Transcript.findOne({
+    fileName: fileName,
+    status: "completed",
+    notesCreated: true
+  });
+
+  if (existingTranscript) {
+    console.log("Same file already processed, copying existing analysis...");
+    // Copy the existing analysis to avoid re-processing
+    transcript.transcriptText = existingTranscript.transcriptText;
+    transcript.transcriptTitle = existingTranscript.transcriptTitle;
+    transcript.notes = existingTranscript.notes;
+    transcript.analytics = existingTranscript.analytics;
+    transcript.notesCreated = true;
+    transcript.status = "completed";
+    await transcript.save();
+
+    // Also copy tasks if they exist
+    const existingTasks = await Task.find({ transcriptId: existingTranscript._id });
+    const tasksData = existingTasks.length > 0 ? existingTasks.map(task => ({
+      ...task.toObject(),
+      _id: undefined,
+      transcriptId: transcript._id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })) : [];
+
+    if (tasksData.length > 0) {
+      await Task.insertMany(tasksData);
+    }
+
+    console.log("Analysis copied from existing file processing");
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, { transcript, tasksData }, "File already processed (analysis copied from existing)")
+      );
+  }
+
   let transcriptText = "";
   transcriptText = req.transcriptText;
   const fileExtension = fileName.split(".").pop().toLowerCase();
@@ -163,7 +205,7 @@ const getTranscript = asyncHandler(async (req, res) => {
 });
 
 const getRecentTranscripts = asyncHandler(async (req, res) => {
-  let { limit, sort, page, search } = req.query;
+  let { limit, sort, page } = req.query;
 
   // Convert query params to numbers or set defaults
   const pageNum = Number(page) > 0 ? Number(page) : 1;
@@ -173,25 +215,14 @@ const getRecentTranscripts = asyncHandler(async (req, res) => {
   // Calculate how many documents to skip
   const skip = (pageNum - 1) * limitNum;
 
-  // Build query
-  let query = {};
-  if (search) {
-    query = {
-      $or: [
-        { fileName: { $regex: search, $options: 'i' } },
-        { transcriptTitle: { $regex: search, $options: 'i' } }
-      ]
-    };
-  }
-
   // Fetch data
-  const transcripts = await Transcript.find(query)
+  const transcripts = await Transcript.find()
     .sort({ createdAt: sortOrder })
     .skip(skip)
     .limit(limitNum);
 
   // Count total documents for pagination info
-  const total = await Transcript.countDocuments(query);
+  const total = await Transcript.countDocuments();
 
   const totalPages = Math.ceil(total / limitNum);
 

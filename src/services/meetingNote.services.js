@@ -163,3 +163,156 @@ Rules:
 export { generateMeetingNotes };
 
 
+// import { GoogleGenAI } from "@google/genai";
+
+// const googleGenAI = new GoogleGenAI({
+//   apiKey: process.env.GOOGLE_GENAI_API_KEY,
+// });
+
+// async function generateMeetingNotes(transcript, meetingDate) {
+//   const prompt = `
+// You are an AI communication evaluator used for REAL interview assessments.
+// You must be STRICT, CONSISTENT, and UNBIASED.
+
+// You are given a transcript and must evaluate it using FIXED RUBRICS.
+// DO NOT be generous. Average performance must score around 5–9.
+
+// Meeting Date: ${meetingDate}
+
+// Transcript:
+// ---
+// ${transcript}
+// ---
+
+// ========================
+// SCORING RUBRICS (MANDATORY)
+// ========================
+
+// For ALL 1–10 scores, follow these anchors strictly:
+
+// 1–2  : Very poor, major issues, unacceptable in interviews  
+// 3–4  : Weak, noticeable problems, below interview standards  
+// 5–6  : Average, acceptable but needs improvement  
+// 7–8  : Strong, interview-ready, minor issues  
+// 9–10 : Exceptional, rare, near-perfect (use VERY sparingly)
+
+// Rules:
+// - Do NOT give 9–10 unless performance is clearly exceptional
+// - Most overall scores SHOULD fall between 5–9
+// - If transcript is short, unclear, or casual → penalize
+// - Scores must be CONSISTENT across candidates
+
+// ========================
+// EVALUATION TASK
+// ========================
+
+// Return ONLY valid JSON in the structure below.
+// All numeric fields MUST be numbers (not strings).
+
+// {
+//   "title": "Short inferred meeting title (max 10 words)",
+//   "summary": "3–5 sentence factual summary",
+//   "keyPoints": ["Concise key discussion points"],
+
+//   "analytics": {
+//     "speechMechanics": {
+//       "clarityPronunciation": 1-10,
+//       "speechRate": "Estimated WPM (number)",
+//       "volumeConsistency": 1-10,
+//       "voiceModulation": 1-10,
+//       "pausesAndFillers": 1-10
+//     },
+
+//     "languageQuality": {
+//       "vocabularyRichness": 1-10,
+//       "grammarAccuracy": 1-10,
+//       "coherence": 1-10,
+//       "relevance": 1-10,
+//       "messageClarity": 1-10
+//     },
+
+//     "emotionalIntelligence": {
+//       "emotionalTone": "Professional / Neutral / Nervous / Confident / Flat",
+//       "confidenceLevel": 1-10,
+//       "engagement": 1-10,
+//       "empathyWarmth": 1-10
+//     },
+
+//     "fluency": {
+//       "stutteringRepetition": 1-10,
+//       "sentenceCompletion": 1-10,
+//       "flow": 1-10
+//     },
+
+//     "scores": {
+//       "fluencyScore": "Average of fluency metrics",
+//       "confidenceScore": "Derived from confidence + engagement",
+//       "clarityScore": "Derived from clarity + coherence",
+//       "overallScore": "STRICT overall interview score (1–10)"
+//     },
+
+//     "insights": {
+//       "weakAreas": ["Exactly 3 specific weaknesses"],
+//       "strengths": ["Exactly 3 specific strengths"]
+//     }
+//   },
+
+//   "actionItems": [
+//     {
+//       "owner": "Name or Unassigned",
+//       "taskTitle": "Short task title",
+//       "task": [
+//         {
+//           "taskName": "Detailed description",
+//           "Priority": "High / Medium / Low",
+//           "DueDate": "dd-mm-yy",
+//           "type": "action / discussion",
+//           "status": "pending"
+//         }
+//       ]
+//     }
+//   ]
+// }
+
+// FINAL CHECK BEFORE RESPONDING:
+// - JSON only
+// - No markdown
+// - No explanations
+// - Be strict
+// `;
+
+//   const response = await googleGenAI.models.generateContent({
+//     model: "gemini-2.5-flash",
+//     generationConfig: {
+//       temperature: 0.2,   // 🔒 reduces randomness
+//       topP: 0.8,
+//     },
+//     contents: [
+//       {
+//         role: "user",
+//         parts: [{ text: prompt }],
+//       },
+//     ],
+//   });
+
+//   let result = response.candidates[0].content.parts[0].text;
+
+//   // JSON cleanup
+//   if (result.includes("```")) {
+//     result = result.split("```")[1].split("```")[0].trim();
+//   }
+
+//   try {
+//     return JSON.parse(result);
+//   } catch (error) {
+//     console.error("JSON parsing failed:", error);
+//     const start = result.indexOf("{");
+//     const end = result.lastIndexOf("}");
+//     if (start !== -1 && end !== -1) {
+//       return JSON.parse(result.substring(start, end + 1));
+//     }
+//     throw new Error("AI response could not be parsed");
+//   }
+// }
+
+// export { generateMeetingNotes };
