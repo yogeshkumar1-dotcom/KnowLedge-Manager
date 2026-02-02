@@ -1,306 +1,373 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axios';
 import { useAuth } from '../contexts/AuthContext';
-import { CloudArrowUpIcon, DocumentIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import {
+  CloudArrowUpIcon,
+  DocumentIcon,
+  CalendarIcon,
+  CheckCircleIcon,
+  InformationCircleIcon,
+  SparklesIcon,
+  ClockIcon
+} from '@heroicons/react/24/outline';
+import CommunicationAnalytics from '../components/CommunicationAnalytics';
+import ActivitiesList from '../components/ActivitiesList';
 
 const Upload = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [message, setMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
-  const [transcript, setTranscript] = useState(null);
+  const [results, setResults] = useState([]);
+  const [selectedResult, setSelectedResult] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const resultsRef = useRef(null);
+
+  const getFileNameWithoutExtension = (fileName) => {
+    if (!fileName) return 'Unknown File';
+    return fileName.replace(/\.[^/.]+$/, '');
+  };
+
+  const getTruncatedFileName = (fileName) => {
+    if (!fileName) return 'Unknown File';
+    const lastDot = fileName.lastIndexOf('.');
+    if (lastDot === -1) return fileName;
+    const name = fileName.substring(0, lastDot);
+    const ext = fileName.substring(lastDot);
+    if (name.length <= 30) return fileName;
+    const truncated = name.substring(0, 40) + '...' + ext;
+    return truncated;
+  };
+
+  useEffect(() => {
+    if (results.length > 0) {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [results]);
+
+  // Fetch the most recent completed transcript on component mount
+  useEffect(() => {
+    const fetchLatestAnalysis = async () => {
+      try {
+        const response = await axiosInstance.get('/api/v1/transcripts?limit=10');
+        const transcripts = response.data.data?.transcripts || [];
+        const latestCompleted = transcripts.find(t => t.status === 'completed' && t.analytics);
+        if (latestCompleted) {
+          setResults([{ transcript: latestCompleted }]);
+          setSelectedResult({ transcript: latestCompleted });
+        }
+      } catch (error) {
+        console.error('Error fetching latest analysis:', error);
+      }
+    };
+
+    fetchLatestAnalysis();
+  }, []);
 
   const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+    else if (e.type === 'dragleave') setDragActive(false);
   };
 
   const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     setDragActive(false);
-
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
-      if (isValidFileType(droppedFile)) {
-        setFile(droppedFile);
-        setMessage('');
-      } else {
-        setMessage('Please select a valid audio file (MP3, WAV, OGG, M4A)');
+      if (isValidFileType(droppedFile)) { 
+        setFiles(prev => [...prev, droppedFile]); 
+        setMessage(''); 
       }
+      else setMessage('Please select a valid video or audio file.');
     }
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (isValidFileType(selectedFile)) {
-        setFile(selectedFile);
-        setMessage('');
-      } else {
-        setMessage('Please select a valid audio file (MP3, WAV, OGG, M4A)');
-      }
-    }
+    const selectedFiles = Array.from(e.target.files);
+    setFiles(prev => [...prev, ...selectedFiles]);
   };
 
   const isValidFileType = (file) => {
-    const validTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/m4a'];
-    const validExtensions = ['.mp3', '.wav', '.ogg', '.m4a'];
+    const validTypes = [
+      'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/m4a',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo'
+    ];
+    const validExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.mov', '.avi'];
 
     return validTypes.includes(file.type) ||
       validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      setMessage('Please select a file first');
-      return;
-    }
-
-    setUploading(true);
-    setUploadProgress(0);
-    setMessage('');
+    if (!files || files.length === 0) { setMessage('Please select files first'); return; }
+    setUploading(true); setUploadProgress(0); setMessage('');
 
     const formData = new FormData();
-    formData.append('file', file);
+    files.forEach(file => {
+      formData.append('files', file);
+    });
     formData.append('userId', user?._id || user?.id || '');
     formData.append('meetingDate', meetingDate);
 
     try {
       const response = await axiosInstance.post('/api/v1/upload/file', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setUploadProgress(percentCompleted);
         },
       });
 
-      console.log('Upload response:', response);
-
       if (response.data && response.data.data) {
-        setTranscript(response.data.data);
-        setMessage('✅ File uploaded and processed successfully!');
-        setFile(null);
-        setUploadProgress(0);
-      } else {
-        throw new Error('Invalid response format');
+        setResults(response.data.data);
+        if (response.data.data.length === 1) {
+          setSelectedResult(response.data.data[0]);
+        }
+        setRefreshTrigger(prev => prev + 1);
+        setMessage('✅ Processing completed successfully!');
+        setFiles([]);
       }
     } catch (error) {
       console.error('Upload error:', error);
       setMessage('❌ Upload failed. Please try again.');
-      setTranscript(null);
-      setUploadProgress(0);
     } finally {
       setUploading(false);
     }
   };
 
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Upload Audio</h1>
-        <p className="mt-2 text-gray-600">Upload audio files to generate transcripts and extract tasks</p>
+    <div className="max-w-5xl mx-auto space-y-10 animate-fadeIn">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-gray-900 tracking-tight">Upload Session</h1>
+          <p className="mt-2 text-lg text-gray-500 font-medium italic">Analyze your communication skills with AI</p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3">
+          <InformationCircleIcon className="h-6 w-6 text-blue-500" />
+          <span className="text-sm font-bold text-gray-600">Supports Video & Audio</span>
+        </div>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label htmlFor="meeting-date" className="block text-sm font-medium text-gray-700 mb-2">
-              Meeting Date
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarIcon className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="date"
-                id="meeting-date"
-                value={meetingDate}
-                onChange={(e) => setMeetingDate(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              />
-            </div>
-            <p className="mt-1 text-xs text-gray-500">Pick the date when the meeting occurred</p>
-          </div>
-        </div>
-
-        <div
-          className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${dragActive
-            ? 'border-blue-400 bg-blue-50'
-            : 'border-gray-300 hover:border-gray-400'
-            }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-        >
-          <div className="text-center">
-            <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <div className="mt-4">
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <span className="mt-2 block text-sm font-medium text-gray-900">
-                  Drop files here or click to upload
-                </span>
-                <input
-                  id="file-upload"
-                  name="file-upload"
-                  type="file"
-                  className="sr-only"
-                  accept=".mp3,.wav,.ogg,.m4a,audio/*"
-                  onChange={handleFileChange}
-                />
-              </label>
-              <p className="mt-2 text-xs text-gray-500">
-                Supported formats: MP3, WAV, OGG, M4A (Max 100MB)
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {file && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center">
-              <DocumentIcon className="h-8 w-8 text-gray-400" />
-              <div className="ml-3 flex-1">
-                <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
-              </div>
-              <button
-                onClick={() => setFile(null)}
-                className="ml-3 text-gray-400 hover:text-gray-600"
-              >
-                <span className="sr-only">Remove</span>
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {uploading && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-              <span>Uploading and processing...</span>
-              <span>{uploadProgress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-
-        {message && (
-          <div className={`mt-4 p-3 rounded-md ${message.includes('✅')
-            ? 'bg-green-50 text-green-800'
-            : 'bg-red-50 text-red-800'
-            }`}>
-            {message}
-          </div>
-        )}
-
-        {transcript && (
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">Transcript Details</h3>
-
-            {transcript.transcript && (
-              <div className="mb-4">
-                <h4 className="font-medium text-blue-800 mb-2">Transcript:</h4>
-                <div className="bg-white p-3 rounded border border-blue-100 max-h-48 overflow-y-auto">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{transcript.transcript.transcriptText || transcript.transcript.notes?.summary || 'Transcript processing...'}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Upload Form */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-black text-gray-400 uppercase tracking-widest pl-1">Session Date</label>
+                <div className="relative">
+                  <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-500" />
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 font-bold text-gray-700"
+                  />
                 </div>
               </div>
-            )}
+            </div>
 
-            {transcript.transcript?.notes && (
-              <div className="mb-4">
-                <h4 className="font-medium text-blue-800 mb-2">Summary:</h4>
-                <div className="bg-white p-3 rounded border border-blue-100">
-                  <p className="text-sm text-gray-700">{transcript.transcript.notes.summary}</p>
+            <div
+              onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+              className={`relative border-4 border-dashed rounded-3xl p-12 transition-all duration-300 group
+                ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-blue-200 hover:bg-gray-50'}`}
+            >
+              <div className="text-center space-y-4">
+                <div className="bg-blue-100 h-16 w-16 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                  <CloudArrowUpIcon className="h-8 w-8 text-blue-600" />
                 </div>
-              </div>
-            )}
-
-            {transcript.transcript?.notes?.keyPoints && (
-              <div className="mb-4">
-                <h4 className="font-medium text-blue-800 mb-2">Key Points:</h4>
-                <ul className="list-disc list-inside space-y-1">
-                  {Array.isArray(transcript.transcript.notes.keyPoints) && transcript.transcript.notes.keyPoints.map((point, idx) => (
-                    <li key={idx} className="text-sm text-gray-700">{point}</li>
+                <div>
+                  <label className="cursor-pointer">
+                    <span className="text-xl font-black text-gray-900 block">Drag & Drop File</span>
+                    <span className="text-sm text-gray-500 font-medium">or click here to browse files</span>
+                    <input type="file" multiple className="sr-only" onChange={handleFileChange} accept="audio/*,video/*" />
+                  </label>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Supported formats: MP3, WAV, OGG, M4A, MP4, MOV, AVI (Max 1024MB)
+                  </p>
+                </div>
+                <div className="flex justify-center space-x-2">
+                  {['MP4', 'MP3', 'WAV', 'MOV'].map(ext => (
+                    <span key={ext} className="px-3 py-1 bg-white text-[10px] font-black text-gray-400 rounded-lg border border-gray-100">{ext}</span>
                   ))}
-                </ul>
+                </div>
               </div>
-            )}
+            </div>
 
-            {transcript.transcript?.analytics && (
-              <div className="mb-4">
-                <h4 className="font-medium text-blue-800 mb-3">AI Analytics:</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { label: 'Consistency', value: transcript.transcript.analytics.consistency, color: 'text-green-600' },
-                    { label: 'Replicacy', value: transcript.transcript.analytics.replicacy, color: 'text-blue-600' },
-                    { label: 'Logical Thinking', value: transcript.transcript.analytics.logicalThinking, color: 'text-purple-600' },
-                    { label: 'Relatable Answers', value: transcript.transcript.analytics.relatableAnswers, color: 'text-orange-600' },
-                  ].map((item, idx) => (
-                    <div key={idx} className="bg-white p-3 rounded-lg border border-blue-100 text-center">
-                      <p className="text-xs text-gray-500 mb-1">{item.label}</p>
-                      <p className={`text-xl font-bold ${item.color}`}>{item.value}/10</p>
+            {files.length > 0 && (
+              <div className="space-y-2">
+                {files.map((file, index) => (
+                  <div key={index} className="flex items-center p-3 bg-blue-50 rounded-2xl border border-blue-100">
+                    <DocumentIcon className="h-8 w-8 text-blue-500 mr-3" />
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-900">{getTruncatedFileName(file.name)}</p>
+                      <p className="text-xs text-blue-600 font-bold">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
                     </div>
-                  ))}
+                    <button onClick={() => setFiles(files.filter((_, i) => i !== index))} className="p-2 hover:bg-blue-100 rounded-full text-blue-400">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {uploading && (
+              <div className="space-y-3 animate-pulse">
+                <div className="flex justify-between text-sm font-black text-blue-600 uppercase tracking-widest">
+                  <span>Processing Session...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-3 w-full bg-blue-50 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                 </div>
               </div>
             )}
 
-            {transcript.tasksData && (
-              <div>
-                <h4 className="font-medium text-blue-800 mb-2">Generated Tasks: {transcript.tasksData.length}</h4>
-                <p className="text-sm text-blue-700">✅ {transcript.tasksData.length} action items have been created and team members notified</p>
+            {message && (
+              <div className={`p-4 rounded-2xl font-bold text-sm ${message.includes('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {message}
               </div>
             )}
-          </div>
-        )}
 
-        <div className="mt-6">
-          <button
-            onClick={handleUpload}
-            disabled={!file || uploading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {uploading ? 'Processing...' : 'Upload and Process'}
-          </button>
+            <button
+              onClick={handleUpload}
+              disabled={files.length === 0 || uploading}
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center space-x-3"
+            >
+              {uploading ? (
+                <>
+                  <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+                  <span>AI Analyzing...</span>
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="h-6 w-6" />
+                  <span>Start Analysis</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Results Section */}
+          {results.length > 0 && (
+            <div ref={resultsRef} className="space-y-8 animate-fadeIn">
+              {results.length === 1 ? (
+                <>
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                      <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                        AI Summary for {getFileNameWithoutExtension(results[0].transcript?.fileName)}
+                      </h2>
+                    </div>
+                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 italic text-gray-700 leading-relaxed">
+                      "{results[0].transcript?.notes?.summary || 'No summary available.'}"
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100" style={{width:'1000px'}}>
+                    <div className="flex items-center space-x-3 mb-8">
+                      <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                      <h2 className="text-2xl font-black text-gray-900 tracking-tight">Communication Metrics</h2>
+                    </div>
+                    <CommunicationAnalytics data={results[0].transcript} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                      <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                        Analysis Results
+                      </h2>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-auto border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-4 py-3 text-left text-sm font-black text-gray-600 uppercase tracking-widest">Person Name</th>
+                            <th className="px-4 py-3 text-left text-sm font-black text-gray-600 uppercase tracking-widest">Overall Score</th>
+                            <th className="px-4 py-3 text-left text-sm font-black text-gray-600 uppercase tracking-widest">View Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {results.map((result, index) => (
+                            <tr key={index} className="border-t border-gray-100 hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-900 font-bold">{getFileNameWithoutExtension(result.transcript?.fileName)}</td>
+                              <td className="px-4 py-3 text-gray-900 font-bold">{result.transcript?.analytics?.overallScore || 'N/A'}</td>
+                              <td className="px-4 py-3">
+                                <button 
+                                  onClick={() => setSelectedResult(result)}
+                                  className="text-blue-600 hover:text-blue-800 font-bold underline"
+                                >
+                                  View Details
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {selectedResult && (
+                    <>
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                          <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                            AI Summary for {getFileNameWithoutExtension(selectedResult.transcript?.fileName)}
+                          </h2>
+                        </div>
+                        <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 italic text-gray-700 leading-relaxed">
+                          "{selectedResult.transcript?.notes?.summary || 'No summary available.'}"
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100" style={{width:'1000px'}}>
+                        <div className="flex items-center space-x-3 mb-8">
+                          <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
+                          <h2 className="text-2xl font-black text-gray-900 tracking-tight">Communication Metrics</h2>
+                        </div>
+                        <CommunicationAnalytics data={selectedResult.transcript} />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="mt-6 text-sm text-gray-600">
-          <h3 className="font-medium mb-2">What happens after upload:</h3>
-          <ul className="list-disc list-inside space-y-1">
-            <li>Audio file is transcribed using AI</li>
-            <li>Meeting notes and summary are generated</li>
-            <li>Action items are extracted and assigned</li>
-            <li>Email notifications are sent to assignees</li>
-          </ul>
+        {/* Side History */}
+        <div className="space-y-6" style={{height:'990px'}}>
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-black text-gray-900 flex items-center">
+                <ClockIcon className="h-5 w-5 mr-2 text-blue-600" />
+                Recent History
+              </h2>
+            </div>
+            <ActivitiesList onSelectTranscript={(t) => { setResults([{ transcript: t }]); setSelectedResult({ transcript: t }); }} refreshTrigger={refreshTrigger} />
+          </div>
+
+          <div className="bg-indigo-600 p-8 rounded-3xl text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+            <div className="relative z-10">
+              <h3 className="text-xl font-bold mb-2">Want better scores?</h3>
+              <p className="text-indigo-100 text-sm mb-4">Our AI coach suggests focusing on voice modulation for your next session.</p>
+              <button className="text-xs font-black uppercase tracking-widest bg-white/20 px-4 py-2 rounded-lg backdrop-blur-md">View Guide</button>
+            </div>
+            <SparklesIcon className="absolute -right-4 -bottom-4 h-32 w-32 text-white/10 group-hover:scale-110 transition-transform duration-500" />
+          </div>
         </div>
       </div>
     </div>
