@@ -130,6 +130,45 @@ const Upload = () => {
     );
   };
 
+  // Function to wait for analysis completion
+  const waitForAnalysisCompletion = async (interviewIds) => {
+    const maxWaitTime = 300000; // 5 minutes
+    const pollInterval = 3000; // 3 seconds
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        const statusChecks = await Promise.all(
+          interviewIds.map(async (id) => {
+            try {
+              const response = await axiosInstance.get(`/api/v1/interviews/${id}`);
+              const status = response.data.data.status;
+              return status === 'scored' || status === 'completed';
+            } catch (error) {
+              console.error(`Error checking status for interview ${id}:`, error);
+              return false;
+            }
+          })
+        );
+        
+        if (statusChecks.every(completed => completed)) {
+          return true; // All analyses completed
+        }
+        
+        // Update progress message
+        const completedCount = statusChecks.filter(Boolean).length;
+        setMessage(`🔄 Analysis in progress... (${completedCount}/${interviewIds.length} completed)`);
+        
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      } catch (error) {
+        console.error('Error checking analysis status:', error);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+    }
+    
+    throw new Error('Analysis timeout - please check results later');
+  };
+
   const handleUpload = async () => {
     if (!files || files.length === 0) {
       setMessage("Please select files first");
@@ -219,83 +258,95 @@ const Upload = () => {
           setResults([transformedData]);
           setSelectedResult(transformedData);
         }
-        // Handle multiple files response
+        // Handle multiple files response - wait for completion
         else if (response.data.data.results) {
-          const transformedResults = response.data.data.results
+          const uploadedInterviews = response.data.data.results
             .filter((result) => result.status === "success" && result.interview)
-            .map((result) => {
-              const interview = result.interview;
-              return {
-                transcript: {
-                  fileName: interview.fileName || "Unknown File",
-                  candidateName: interview.candidateName || "Unknown Candidate",
-                  status: interview.status || "pending",
-                  notes: {
-                    summary:
-                      interview.summary?.verdict || "Analysis in progress",
-                  },
-                  analytics: {
-                    overallCommunicationScore:
-                      interview.overall_communication_score,
-                    overallScore: interview.overall_communication_score,
-                    fluencyScore: interview.language_quality?.fluency_score,
-                    confidenceScore:
-                      interview.communication_skills?.confidence_score,
-                    clarityScore: interview.language_quality?.clarity_score,
-                    clarityPronunciation:
-                      interview.language_quality?.clarity_score,
-                    speechRate: interview.speech_metrics?.words_per_minute
-                      ? Math.min(
-                          interview.speech_metrics.words_per_minute / 20,
-                          10,
-                        )
-                      : 7,
-                    volumeConsistency:
-                      interview.communication_skills?.confidence_score,
-                    voiceModulation:
-                      interview.communication_skills?.engagement_score,
-                    flow: interview.language_quality?.fluency_score,
-                    vocabularyRichness:
-                      interview.language_quality?.grammar_score,
-                    grammarAccuracy: interview.language_quality?.grammar_score,
-                    coherence: interview.communication_skills?.structure_score,
-                    relevance: interview.communication_skills?.relevance_score,
-                    clarityOfMessage:
-                      interview.communication_skills?.structure_score,
-                    confidenceLevel:
-                      interview.communication_skills?.confidence_score,
-                    engagement:
-                      interview.communication_skills?.engagement_score,
-                    empathyWarmth:
-                      interview.communication_skills?.engagement_score,
-                    emotionalTone: "Professional",
-                    strengths:
-                      interview.coaching_feedback?.what_went_well ||
-                      interview.summary?.strengths ||
-                      [],
-                    weakAreas:
-                      interview.coaching_feedback?.what_to_improve ||
-                      interview.summary?.primary_issues ||
-                      [],
-                  },
-                },
-              };
-            });
-          setResults(transformedResults);
-          if (transformedResults.length > 0) {
-            setSelectedResult(transformedResults[0]);
+            .map((result) => result.interview);
+          
+          if (uploadedInterviews.length > 0) {
+            // Wait for all analyses to complete
+            await waitForAnalysisCompletion(uploadedInterviews.map(i => i._id));
+            
+            // Fetch completed results
+            const completedResults = await Promise.all(
+              uploadedInterviews.map(async (interview) => {
+                try {
+                  const response = await axiosInstance.get(`/api/v1/interviews/${interview._id}`);
+                  const completedInterview = response.data.data;
+                  
+                  // Only return results for successfully completed interviews
+                  if (completedInterview.status !== 'scored' && completedInterview.status !== 'completed') {
+                    return null;
+                  }
+                  
+                  return {
+                    transcript: {
+                      fileName: completedInterview.fileName || "Unknown File",
+                      candidateName: completedInterview.candidateName || "Unknown Candidate",
+                      status: completedInterview.status || "pending",
+                      notes: {
+                        summary: completedInterview.summary?.verdict || "Analysis completed",
+                      },
+                      analytics: {
+                        overallCommunicationScore: completedInterview.overall_communication_score,
+                        overallScore: completedInterview.overall_communication_score,
+                        fluencyScore: completedInterview.language_quality?.fluency_score,
+                        confidenceScore: completedInterview.communication_skills?.confidence_score,
+                        clarityScore: completedInterview.language_quality?.clarity_score,
+                        clarityPronunciation: completedInterview.language_quality?.clarity_score,
+                        speechRate: completedInterview.speech_metrics?.words_per_minute
+                          ? Math.min(completedInterview.speech_metrics.words_per_minute / 20, 10)
+                          : 7,
+                        volumeConsistency: completedInterview.communication_skills?.confidence_score,
+                        voiceModulation: completedInterview.communication_skills?.engagement_score,
+                        flow: completedInterview.language_quality?.fluency_score,
+                        vocabularyRichness: completedInterview.language_quality?.grammar_score,
+                        grammarAccuracy: completedInterview.language_quality?.grammar_score,
+                        coherence: completedInterview.communication_skills?.structure_score,
+                        relevance: completedInterview.communication_skills?.relevance_score,
+                        clarityOfMessage: completedInterview.communication_skills?.structure_score,
+                        confidenceLevel: completedInterview.communication_skills?.confidence_score,
+                        engagement: completedInterview.communication_skills?.engagement_score,
+                        empathyWarmth: completedInterview.communication_skills?.engagement_score,
+                        emotionalTone: "Professional",
+                        strengths: completedInterview.coaching_feedback?.what_went_well || completedInterview.summary?.strengths || [],
+                        weakAreas: completedInterview.coaching_feedback?.what_to_improve || completedInterview.summary?.primary_issues || [],
+                      },
+                    },
+                  };
+                } catch (error) {
+                  console.error(`Error fetching completed interview:`, error);
+                  return null;
+                }
+              })
+            );
+            
+            const validResults = completedResults.filter(result => result !== null);
+            if (validResults.length > 0) {
+              setResults(validResults);
+              setSelectedResult(validResults[0]);
+            } else {
+              throw new Error('No completed analyses found');
+            }
           }
         } else {
           throw new Error("No interview data received");
         }
 
         setRefreshTrigger((prev) => prev + 1);
-        setMessage("✅ Processing completed successfully!");
+        setMessage("✅ Analysis completed successfully!");
         setFiles([]);
       }
     } catch (error) {
       console.error("Upload error:", error);
-      setMessage("❌ Upload failed. Please try again.");
+      if (error.message.includes('timeout')) {
+        setMessage("⏱️ Analysis is taking longer than expected. Please check the Recent History for results.");
+      } else if (error.message.includes('No completed analyses')) {
+        setMessage("⚠️ Some analyses may still be processing. Please check the Recent History for results.");
+      } else {
+        setMessage("❌ Upload failed. Please try again.");
+      }
     } finally {
       setUploading(false);
     }
@@ -431,7 +482,9 @@ const Upload = () => {
             {uploading && (
               <div className="space-y-3 animate-pulse">
                 <div className="flex justify-between text-sm font-black text-blue-600 uppercase tracking-widest">
-                  <span>Processing Session...</span>
+                  <span>
+                    {files.length > 1 ? "Processing Multiple Files..." : "Processing Session..."}
+                  </span>
                   <span>{uploadProgress}%</span>
                 </div>
                 <div className="h-3 w-full bg-blue-50 rounded-full overflow-hidden">
@@ -440,12 +493,25 @@ const Upload = () => {
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
+                {files.length > 1 && (
+                  <p className="text-xs text-blue-600 font-medium text-center">
+                    Please wait while we analyze all files. This may take a few minutes.
+                  </p>
+                )}
               </div>
             )}
 
             {message && (
               <div
-                className={`p-4 rounded-2xl font-bold text-sm ${message.includes("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}
+                className={`p-4 rounded-2xl font-bold text-sm ${
+                  message.includes("✅") || message.includes("completed") 
+                    ? "bg-green-50 text-green-700" 
+                    : message.includes("🔄") || message.includes("progress")
+                    ? "bg-blue-50 text-blue-700"
+                    : message.includes("⏱️") || message.includes("⚠️")
+                    ? "bg-yellow-50 text-yellow-700"
+                    : "bg-red-50 text-red-700"
+                }`}
               >
                 {message}
               </div>
@@ -459,7 +525,9 @@ const Upload = () => {
               {uploading ? (
                 <>
                   <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
-                  <span>AI Analyzing...</span>
+                  <span>
+                    {files.length > 1 ? "Analyzing Multiple Files..." : "AI Analyzing..."}
+                  </span>
                 </>
               ) : (
                 <>
@@ -506,7 +574,7 @@ const Upload = () => {
                 </>
               ) : (
                 <>
-                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6" style={{width:'1000px'}}>
                     <div className="flex items-center space-x-3">
                       <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
                       <h2 className="text-2xl font-black text-gray-900 tracking-tight">
@@ -559,7 +627,7 @@ const Upload = () => {
 
                   {selectedResult && (
                     <>
-                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6" style={{width:'1000px'}}>
                         <div className="flex items-center space-x-3">
                           <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
                           <h2 className="text-2xl font-black text-gray-900 tracking-tight">
@@ -599,7 +667,7 @@ const Upload = () => {
         </div>
 
         {/* Side History */}
-        <div className="space-y-6" style={{ height: "990px" }}>
+        <div className="space-y-6" style={{ height: "570px" }}>
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-black text-gray-900 flex items-center">
