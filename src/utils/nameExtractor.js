@@ -5,6 +5,13 @@ export const extractCandidateFromFilename = (filename) => {
   // Remove file extension
   const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
   
+  // Pattern for "Communication Round __ Shreyas __ Grazitti Interactive" or "Comm Round __ Vansh Singla __ Grazitti"
+  const zoomPattern = /__ ([A-Za-z]+(?:\s+[A-Za-z]+)*) __/;
+  const zoomMatch = nameWithoutExt.match(zoomPattern);
+  if (zoomMatch) {
+    return zoomMatch[1].trim();
+  }
+  
   // Common patterns for interview filenames
   const patterns = [
     // "John_Doe_Interview.mp4" or "John-Doe-Interview.mp4"

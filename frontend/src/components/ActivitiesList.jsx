@@ -25,10 +25,49 @@ const ActivitiesList = ({ onSelectTranscript, refreshTrigger }) => {
     const fetchHistory = async () => {
         try {
             setLoading(true);
-            const response = await axiosInstance.get('/api/v1/transcripts?limit=100');
-            const data = response.data.data?.transcripts || [];
-            setActivities(data);
-            setFilteredActivities(data);
+            const response = await axiosInstance.get('/api/v1/interviews?limit=100');
+            const data = response.data.data?.interviews || [];
+            // Transform interview data to match expected format
+            const transformedData = data.map(interview => ({
+                _id: interview._id,
+                fileName: interview.fileName,
+                candidateName: interview.candidateName,
+                transcriptTitle: interview.candidateName,
+                createdAt: interview.createdAt,
+                status: interview.status,
+                // Transform for analytics display
+                analytics: interview.status === 'scored' ? {
+                    overallCommunicationScore: interview.overall_communication_score,
+                    overallScore: interview.overall_communication_score,
+                    fluencyScore: interview.language_quality?.fluency_score,
+                    confidenceScore: interview.communication_skills?.confidence_score,
+                    clarityScore: interview.language_quality?.clarity_score,
+                    // Speech & Fluency metrics
+                    clarityPronunciation: interview.language_quality?.clarity_score,
+                    speechRate: interview.speech_metrics?.words_per_minute ? Math.min(interview.speech_metrics.words_per_minute / 20, 10) : 7,
+                    volumeConsistency: interview.communication_skills?.confidence_score,
+                    voiceModulation: interview.communication_skills?.engagement_score,
+                    flow: interview.language_quality?.fluency_score,
+                    // Content Quality metrics
+                    vocabularyRichness: interview.language_quality?.grammar_score,
+                    grammarAccuracy: interview.language_quality?.grammar_score,
+                    coherence: interview.communication_skills?.structure_score,
+                    relevance: interview.communication_skills?.relevance_score,
+                    clarityOfMessage: interview.communication_skills?.structure_score,
+                    // Soft skills
+                    confidenceLevel: interview.communication_skills?.confidence_score,
+                    engagement: interview.communication_skills?.engagement_score,
+                    empathyWarmth: interview.communication_skills?.engagement_score,
+                    emotionalTone: 'Professional',
+                    strengths: interview.coaching_feedback?.what_went_well || interview.summary?.strengths || [],
+                    weakAreas: interview.coaching_feedback?.what_to_improve || interview.summary?.primary_issues || []
+                } : null,
+                notes: {
+                    summary: interview.summary?.verdict || 'Processing...'
+                }
+            }));
+            setActivities(transformedData);
+            setFilteredActivities(transformedData);
             setLoading(false);
         } catch (error) {
             console.error('Error fetching history:', error);

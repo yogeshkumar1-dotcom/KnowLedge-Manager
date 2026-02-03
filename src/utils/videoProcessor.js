@@ -17,7 +17,8 @@ export const extractAudioFromVideo = (videoBuffer, originalName) => {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    const videoPath = path.join(tempDir, `video_${Date.now()}_${originalName}`);
+    const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const videoPath = path.join(tempDir, `video_${Date.now()}_${sanitizedName}`);
     const audioPath = path.join(tempDir, `audio_${Date.now()}.wav`);
 
     // Write video buffer to temp file

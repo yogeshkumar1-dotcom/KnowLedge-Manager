@@ -34,3 +34,10 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Export all API modules
+export { authAPI } from './auth.js';
+export { transcriptionAPI } from './transcription.js';
+export { interviewAPI } from './interview.js';
+export { tasksAPI } from './tasks.js';
+export { grazittiAPI } from './grazitti.js';

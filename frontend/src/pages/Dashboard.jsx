@@ -1,209 +1,349 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axios';
 import {
-  ChartBarIcon,
   VideoCameraIcon,
-  SpeakerWaveIcon,
-  ClockIcon,
-  ArrowTrendingUpIcon
+  EyeIcon,
+  CalendarIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
-} from 'recharts';
 
 const Dashboard = () => {
-  const [stats, setStats] = useState({
-    totalRecordings: 0,
-    averageScore: 0,
-    totalTime: 0,
-    engagementRate: 0
-  });
-  const [usageData, setUsageData] = useState([]);
+  const navigate = useNavigate();
+  const [recordings, setRecordings] = useState([]);
+  const [filteredRecordings, setFilteredRecordings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [selectedRecordings, setSelectedRecordings] = useState([]);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await axiosInstance.get('/api/v1/transcripts?limit=100');
-        const transcripts = response.data.data?.transcripts || [];
-
-        // Calculate stats
-        const totalRecordings = transcripts.length;
-        const totalScore = transcripts.reduce((acc, curr) => acc + (curr.analytics?.overallCommunicationScore || 0), 0);
-        const averageScore = totalRecordings > 0 ? (totalScore / totalRecordings / 10).toFixed(1) : 0;
-
-        // Mock usage data based on actual transcripts
-        const last7Days = [...Array(7)].map((_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const dateStr = d.toISOString().split('T')[0];
-          const count = transcripts.filter(t => new Date(t.createdAt).toISOString().split('T')[0] === dateStr).length;
-          return { name: dateStr.split('-').slice(1).join('/'), usage: count || Math.floor(Math.random() * 5) }; // Random for demo if no data
-        }).reverse();
-
-        setUsageData(last7Days);
-        setStats({
-          totalRecordings,
-          averageScore,
-          totalTime: Math.floor(totalRecordings * 12.5), // Mock conversion
-          engagementRate: 85 // Mock
-        });
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+    fetchInterviews();
   }, []);
 
-  const StatCard = ({ title, value, icon: Icon, color, subValue, max }) => (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-xl ${color}`}>
-          <Icon className="h-6 w-6 text-white" />
-        </div>
-        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
-          +12% ↑
-        </span>
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</p>
-        <div className="flex items-baseline mt-1">
-          <p className="text-3xl font-black text-gray-900">{value}</p>
-          {subValue && <span className="ml-2 text-sm font-medium text-gray-400">{subValue}</span>}
-        </div>
-      </div>
+  useEffect(() => {
+    filterAndSortRecordings();
+  }, [recordings, searchTerm, statusFilter, sortBy, sortOrder]);
+
+  const fetchInterviews = async () => {
+    try {
+      const response = await axiosInstance.get('/api/v1/interviews?limit=100');
+      const interviews = response.data.data?.interviews || [];
+      setRecordings(interviews);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching interviews:', error);
+      setLoading(false);
+    }
+  };
+
+  const filterAndSortRecordings = () => {
+    let filtered = recordings.filter(recording => {
+      const candidateName = recording.candidateName || '';
+      const position = recording.position || '';
+      const matchesSearch = candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           position.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || recording.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+      switch (sortBy) {
+        case 'name':
+          aValue = (a.candidateName || '').toLowerCase();
+          bValue = (b.candidateName || '').toLowerCase();
+          break;
+        case 'score':
+          aValue = a.overall_communication_score || 0;
+          bValue = b.overall_communication_score || 0;
+          break;
+        case 'date':
+        default:
+          aValue = new Date(a.createdAt || 0);
+          bValue = new Date(b.createdAt || 0);
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredRecordings(filtered);
+  };
+
+  const handleSelectRecording = (recordingId) => {
+    setSelectedRecordings(prev => 
+      prev.includes(recordingId) 
+        ? prev.filter(id => id !== recordingId)
+        : [...prev, recordingId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedRecordings.length === filteredRecordings.length) {
+      setSelectedRecordings([]);
+    } else {
+      setSelectedRecordings(filteredRecordings.map(r => r._id));
+    }
+  };
+
+  const downloadReport = () => {
+    const selectedData = filteredRecordings.filter(r => selectedRecordings.includes(r._id));
+    
+    let htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interview Analysis Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .score-high { color: #16a34a; font-weight: bold; }
+        .score-medium { color: #ca8a04; font-weight: bold; }
+        .score-low { color: #dc2626; font-weight: bold; }
+        .footer { margin-top: 20px; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Interview Analysis Report</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Candidate Name</th>
+                <th>Fluency Score</th>
+                <th>Confidence Score</th>
+                <th>Clarity Score</th>
+                <th>Overall Score</th>
+            </tr>
+        </thead>
+        <tbody>`;
+    
+    selectedData.forEach(interview => {
+      const fluencyScore = interview.language_quality?.fluency_score || 'N/A';
+      const confidenceScore = interview.communication_skills?.confidence_score || 'N/A';
+      const clarityScore = interview.language_quality?.clarity_score || 'N/A';
+      const overallScore = interview.overall_communication_score || 'N/A';
+      
+      const getScoreClass = (score) => {
+        if (score === 'N/A') return '';
+        return score >= 8 ? 'score-high' : score >= 5 ? 'score-medium' : 'score-low';
+      };
+      
+      htmlContent += `
+            <tr>
+                <td>${interview.candidateName || 'Unknown'}</td>
+                <td class="${getScoreClass(fluencyScore)}">${fluencyScore}</td>
+                <td class="${getScoreClass(confidenceScore)}">${confidenceScore}</td>
+                <td class="${getScoreClass(clarityScore)}">${clarityScore}</td>
+                <td class="${getScoreClass(overallScore)}">${overallScore}</td>
+            </tr>`;
+    });
+    
+    htmlContent += `
+        </tbody>
+    </table>
+    <div class="footer">
+        <p><strong>Generated on:</strong> ${new Date().toLocaleString()}</p>
+        <p><strong>Total Records:</strong> ${selectedData.length}</p>
     </div>
-  );
+</body>
+</html>`;
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `interview-report-${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen -mt-20">
-        <div className="relative">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-100 border-t-blue-600"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></div>
-          </div>
-        </div>
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-100 border-t-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 animate-fadeIn">
+    <div className="max-w-6xl mx-auto space-y-8 animate-fadeIn">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black text-gray-900 tracking-tight">Welcome Back!</h1>
-          <p className="mt-1 text-lg text-gray-500 font-medium">Here's your communication performance overview.</p>
+          <h1 className="text-4xl font-black text-gray-900 tracking-tight">Interview Dashboard</h1>
+          <p className="mt-1 text-lg text-gray-500 font-medium">Manage and analyze candidate interviews ({recordings.length} total)</p>
         </div>
-        <div className="flex items-center space-x-3 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
-            Generate Report
+        <div className="flex gap-3">
+          {selectedRecordings.length > 0 && (
+            <button 
+              onClick={downloadReport}
+              className="px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors shadow-lg flex items-center gap-2"
+            >
+              <ArrowDownTrayIcon className="h-5 w-5" />
+              Download ({selectedRecordings.length})
+            </button>
+          )}
+          <button 
+            onClick={() => navigate('/upload')}
+            className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg"
+          >
+            Analyze New Interview
           </button>
         </div>
       </header>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Sessions"
-          value={stats.totalRecordings}
-          icon={VideoCameraIcon}
-          color="bg-blue-600"
-          subValue="Recordings"
-        />
-        <StatCard
-          title="Avg Communication"
-          value={stats.averageScore}
-          icon={ChartBarIcon}
-          color="bg-purple-600"
-          subValue="/10"
-        />
-        <StatCard
-          title="Total Practice"
-          value={stats.totalTime}
-          icon={ClockIcon}
-          color="bg-emerald-600"
-          subValue="Mins"
-        />
-        <StatCard
-          title="Engagement"
-          value={stats.engagementRate}
-          icon={ArrowTrendingUpIcon}
-          color="bg-orange-600"
-          subValue="%"
-        />
-      </div>
-
-      {/* Engagement Graph */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Daily Engagement</h2>
-            <p className="text-sm text-gray-500 font-medium">Usage activity over the last 7 days</p>
+      {/* Search and Filters */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search candidates..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
-          <select className="bg-gray-50 border-none text-sm font-bold text-gray-600 rounded-xl px-4 focus:ring-2 focus:ring-blue-500">
-            <option>Last 7 Days</option>
-            <option>Last 30 Days</option>
+          
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="scored">Completed</option>
+          </select>
+          
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="date">Sort by Date</option>
+            <option value="name">Sort by Name</option>
+            <option value="score">Sort by Score</option>
+          </select>
+          
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
           </select>
         </div>
-        <div className="h-[350px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={usageData}>
-              <defs>
-                <linearGradient id="colorUsage" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis
-                dataKey="name"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
-                dy={15}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
-                dx={-10}
-              />
-              <Tooltip
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-              />
-              <Area
-                type="monotone"
-                dataKey="usage"
-                stroke="#3B82F6"
-                strokeWidth={4}
-                fillOpacity={1}
-                fill="url(#colorUsage)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
       </div>
 
-      {/* Visual Tips */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl text-white shadow-xl shadow-blue-200">
-          <h3 className="text-2xl font-bold mb-2">Pro Tip: Use Pauses</h3>
-          <p className="text-blue-100 mb-6">Controlled silences can make your speech more impactful and give you time to think.</p>
-          <button className="bg-white/20 hover:bg-white/30 transition-colors px-6 py-2 rounded-xl font-bold text-sm backdrop-blur-md">Learn More</button>
+      {/* Interviews List */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Candidate Interviews</h2>
+              <p className="text-sm text-gray-500 mt-1">Showing {filteredRecordings.length} of {recordings.length} interviews</p>
+            </div>
+            {filteredRecordings.length > 0 && (
+              <button
+                onClick={handleSelectAll}
+                className="px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                {selectedRecordings.length === filteredRecordings.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex items-center">
-          <div className="flex-1">
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Ready to grow?</h3>
-            <p className="text-gray-500 mb-6">Upload a new recording to see your latest communication metrics.</p>
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">New Recording</button>
-          </div>
-          <div className="hidden lg:block">
-            <SpeakerWaveIcon className="h-32 w-32 text-blue-50/50" />
-          </div>
+        
+        <div className="divide-y divide-gray-100">
+          {filteredRecordings.length > 0 ? filteredRecordings.map((recording) => (
+            <div 
+              key={recording._id}
+              className="p-6 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedRecordings.includes(recording._id)}
+                    onChange={() => handleSelectRecording(recording._id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div 
+                    className="bg-blue-100 p-3 rounded-lg cursor-pointer"
+                    onClick={() => navigate(`/interview/${recording._id}`)}
+                  >
+                    <VideoCameraIcon className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div onClick={() => navigate(`/interview/${recording._id}`)}>
+                    <h3 className="text-lg font-bold text-gray-900">{recording.candidateName || 'Unknown Candidate'}</h3>
+                    <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                      <span>{recording.position || 'Unknown Position'}</span>
+                      <span className="flex items-center">
+                        <CalendarIcon className="h-4 w-4 mr-1" />
+                        {recording.createdAt ? new Date(recording.createdAt).toLocaleDateString() : 'Unknown Date'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-4">
+                  {recording.overall_communication_score && (
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">{recording.overall_communication_score}</div>
+                      <div className="text-xs text-gray-500">Score</div>
+                    </div>
+                  )}
+                  
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    recording.status === 'scored' ? 'bg-green-100 text-green-700' :
+                    recording.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {recording.status}
+                  </div>
+                  
+                  <button 
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/interview/${recording._id}`);
+                    }}
+                  >
+                    <EyeIcon className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className="p-12 text-center">
+              <VideoCameraIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No interviews found</h3>
+              <p className="text-gray-500 mb-6">Try adjusting your search or filters, or analyze a new interview.</p>
+              <button 
+                onClick={() => navigate('/upload')}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
+                Analyze New Interview
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -211,3 +351,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+                 

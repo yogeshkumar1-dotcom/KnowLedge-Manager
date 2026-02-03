@@ -1,6 +1,6 @@
 import api from './index.js';
 
-export const taskAPI = {
+export const tasksAPI = {
   getTasks: () => api.get('/tasks'),
   createTask: (taskData) => api.post('/tasks', taskData),
   updateTask: (id, taskData) => api.put(`/tasks/${id}`, taskData),

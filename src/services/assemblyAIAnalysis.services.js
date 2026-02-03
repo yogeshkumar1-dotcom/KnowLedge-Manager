@@ -30,7 +30,7 @@ export const analyzeInterviewWithAssemblyAI = async (transcriptId) => {
       },
       {
         headers: {
-          'Authorization': ASSEMBLYAI_KEY,
+          'Authorization': `Bearer ${ASSEMBLYAI_KEY}`,
           'Content-Type': 'application/json'
         }
       }
@@ -74,7 +74,7 @@ export const getTranscriptInsights = async (transcriptId) => {
       },
       {
         headers: {
-          'Authorization': ASSEMBLYAI_KEY,
+          'Authorization': `Bearer ${ASSEMBLYAI_KEY}`,
           'Content-Type': 'application/json'
         }
       }
