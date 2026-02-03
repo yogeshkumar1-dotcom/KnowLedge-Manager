@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../utils/axios";
 import { useAuth } from "../contexts/AuthContext";
+import { useInterview } from "../contexts/InterviewContext";
 import {
   CloudArrowUpIcon,
   DocumentIcon,
@@ -16,6 +17,7 @@ import ActivitiesList from "../components/ActivitiesList";
 
 const Upload = () => {
   const { user } = useAuth();
+  const { addInterview, updateInterview } = useInterview();
   const navigate = useNavigate();
   const [files, setFiles] = useState([]);
   const [meetingDate, setMeetingDate] = useState(
@@ -206,6 +208,9 @@ const Upload = () => {
         // Handle single file response
         if (response.data.data.interview) {
           const interview = response.data.data.interview;
+          
+          // Add to context immediately
+          addInterview(interview);
           const transformedData = {
             transcript: {
               fileName: interview.fileName || "Unknown File",
@@ -264,6 +269,9 @@ const Upload = () => {
             .filter((result) => result.status === "success" && result.interview)
             .map((result) => result.interview);
           
+          // Add all interviews to context immediately
+          uploadedInterviews.forEach(interview => addInterview(interview));
+          
           if (uploadedInterviews.length > 0) {
             // Wait for all analyses to complete
             await waitForAnalysisCompletion(uploadedInterviews.map(i => i._id));
@@ -274,6 +282,9 @@ const Upload = () => {
                 try {
                   const response = await axiosInstance.get(`/api/v1/interviews/${interview._id}`);
                   const completedInterview = response.data.data;
+                  
+                  // Update the interview in context
+                  updateInterview(completedInterview);
                   
                   // Only return results for successfully completed interviews
                   if (completedInterview.status !== 'scored' && completedInterview.status !== 'completed') {
@@ -543,7 +554,7 @@ const Upload = () => {
             <div ref={resultsRef} className="space-y-8 animate-fadeIn">
               {results.length === 1 ? (
                 <>
-                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6" style={{width:'1024px'}}>
                     <div className="flex items-center space-x-3">
                       <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
                       <h2 className="text-2xl font-black text-gray-900 tracking-tight">
@@ -561,7 +572,7 @@ const Upload = () => {
 
                   <div
                     className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100"
-                    style={{ width: "1000px" }}
+                    style={{ width: "1024px" }}
                   >
                     <div className="flex items-center space-x-3 mb-8">
                       <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
@@ -574,7 +585,7 @@ const Upload = () => {
                 </>
               ) : (
                 <>
-                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6" style={{width:'1000px'}}>
+                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6" style={{width:'1024px'}}>
                     <div className="flex items-center space-x-3">
                       <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
                       <h2 className="text-2xl font-black text-gray-900 tracking-tight">
@@ -627,7 +638,7 @@ const Upload = () => {
 
                   {selectedResult && (
                     <>
-                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6" style={{width:'1000px'}}>
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6" style={{width:'1024px'}}>
                         <div className="flex items-center space-x-3">
                           <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
                           <h2 className="text-2xl font-black text-gray-900 tracking-tight">
@@ -646,7 +657,7 @@ const Upload = () => {
 
                       <div
                         className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100"
-                        style={{ width: "1000px" }}
+                        style={{ width: "1024px" }}
                       >
                         <div className="flex items-center space-x-3 mb-8">
                           <div className="h-1 inline-block w-8 bg-blue-600 rounded-full"></div>
@@ -680,7 +691,6 @@ const Upload = () => {
                 setResults([{ transcript: t }]);
                 setSelectedResult({ transcript: t });
               }}
-              refreshTrigger={refreshTrigger}
             />
           </div>
         </div>

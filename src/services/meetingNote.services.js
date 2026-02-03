@@ -211,7 +211,7 @@ All numeric fields MUST be numbers (not strings).
 
 {
   "title": "Short inferred meeting title (max 10 words)",
-  "summary": "3–5 sentence factual summary",
+  "summary": "10-15 sentence factual summary",
   "keyPoints": ["Concise key discussion points"],
 
   "analytics": {

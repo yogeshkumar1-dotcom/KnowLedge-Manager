@@ -31,6 +31,11 @@ RULES (VERY IMPORTANT):
 - Extract actual names mentioned in the conversation, not just "Speaker A" or "Speaker B".
 - Look for introductions like "Hi, I'm John" or "My name is Sarah".
 - Be CONSISTENT - same transcript should always give same scores.
+- SUMMARY VERDICT: Write exactly 50-100 words providing comprehensive analysis of the candidate's performance, communication style, strengths, areas for improvement, and overall assessment.
+- Do NOT give 9–10 unless performance is clearly exceptional
+- Most overall scores SHOULD fall between 5–9
+- If transcript is short, unclear, or casual → penalize
+- Scores must be CONSISTENT across candidates
 
 SCORING WEIGHTS:
 - Fluency: 25%
@@ -54,7 +59,7 @@ RETURN JSON IN EXACTLY THIS FORMAT:
   "interviewer_name": string | null,
   "interviewee_name": string | null,
   "summary": {
-    "verdict": string,
+    "verdict": "A comprehensive 50-100 word summary analyzing the candidate's overall interview performance, communication effectiveness, and key observations",
     "strengths": [string],
     "primary_issues": [string]
   },

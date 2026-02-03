@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axiosInstance from '../utils/axios';
+import { useInterview } from '../contexts/InterviewContext';
 import {
   VideoCameraIcon,
   EyeIcon,
@@ -12,9 +12,8 @@ import {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [recordings, setRecordings] = useState([]);
+  const { interviews, loading } = useInterview();
   const [filteredRecordings, setFilteredRecordings] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
@@ -22,27 +21,11 @@ const Dashboard = () => {
   const [selectedRecordings, setSelectedRecordings] = useState([]);
 
   useEffect(() => {
-    fetchInterviews();
-  }, []);
-
-  useEffect(() => {
     filterAndSortRecordings();
-  }, [recordings, searchTerm, statusFilter, sortBy, sortOrder]);
-
-  const fetchInterviews = async () => {
-    try {
-      const response = await axiosInstance.get('/api/v1/interviews?limit=100');
-      const interviews = response.data.data?.interviews || [];
-      setRecordings(interviews);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching interviews:', error);
-      setLoading(false);
-    }
-  };
+  }, [interviews, searchTerm, statusFilter, sortBy, sortOrder]);
 
   const filterAndSortRecordings = () => {
-    let filtered = recordings.filter(recording => {
+    let filtered = interviews.filter(recording => {
       const candidateName = recording.candidateName || '';
       const position = recording.position || '';
       const matchesSearch = candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -184,7 +167,7 @@ const Dashboard = () => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-black text-gray-900 tracking-tight">Interview Dashboard</h1>
-          <p className="mt-1 text-lg text-gray-500 font-medium">Manage and analyze candidate interviews ({recordings.length} total)</p>
+          <p className="mt-1 text-lg text-gray-500 font-medium">Manage and analyze candidate interviews ({interviews.length} total)</p>
         </div>
         <div className="flex gap-3">
           {selectedRecordings.length > 0 && (
@@ -257,7 +240,7 @@ const Dashboard = () => {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Candidate Interviews</h2>
-              <p className="text-sm text-gray-500 mt-1">Showing {filteredRecordings.length} of {recordings.length} interviews</p>
+              <p className="text-sm text-gray-500 mt-1">Showing {filteredRecordings.length} of {interviews.length} interviews</p>
             </div>
             {filteredRecordings.length > 0 && (
               <button
