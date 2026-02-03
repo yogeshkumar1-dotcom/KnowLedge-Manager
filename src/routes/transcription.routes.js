@@ -1,8 +1,8 @@
 import express from "express";
-import { getRecentTranscripts, getTranscript } from "../controllers/transcription.controllers.js";
+import {  getInterview, getRecentInterviews } from "../controllers/transcription.controllers.js";
 const router = express.Router();
 
-router.get("/", getRecentTranscripts)
-router.get("/:id", getTranscript)
+router.get("/", getRecentInterviews)
+router.get("/:id", getInterview)
 
 export default router;
