@@ -44,7 +44,7 @@ If the transcript doesn't appear to be an interview, provide general analysis.
 Return only valid JSON.`;
 
   try {
-    const model = googleGenAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = googleGenAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
