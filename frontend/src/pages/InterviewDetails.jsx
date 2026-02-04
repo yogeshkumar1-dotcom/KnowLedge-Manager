@@ -121,10 +121,6 @@ const InterviewDetails = () => {
             </h1>
             <div className="flex items-center space-x-6 text-gray-600">
               <div className="flex items-center space-x-2">
-                <UserIcon className="h-5 w-5" />
-                <span>{interview.position}</span>
-              </div>
-              <div className="flex items-center space-x-2">
                 <CalendarIcon className="h-5 w-5" />
                 <span>
                   {new Date(interview.interviewDate).toLocaleDateString()}

@@ -266,7 +266,6 @@ const Dashboard = () => {
                   <div onClick={() => navigate(`/interview/${recording._id}`)}>
                     <h3 className="text-lg font-bold text-gray-900">{recording.candidateName || 'Unknown Candidate'}</h3>
                     <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
-                      <span>{recording.position || 'Unknown Position'}</span>
                       <span className="flex items-center">
                         <CalendarIcon className="h-4 w-4 mr-1" />
                         {recording.createdAt ? new Date(recording.createdAt).toLocaleDateString() : 'Unknown Date'}
