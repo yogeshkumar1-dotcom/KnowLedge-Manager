@@ -13,7 +13,7 @@ export const scoreInterview = async (transcript) => {
     
     // Add timeout wrapper - increased to 3 minutes
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('LLM request timeout after 180 seconds')), 180000);
+      setTimeout(() => reject(new Error('LLM request timeout after 300 seconds')), 300000);
     });
     
     const prompt = `
@@ -31,7 +31,7 @@ RULES (VERY IMPORTANT):
 - Extract actual names mentioned in the conversation, not just "Speaker A" or "Speaker B".
 - Look for introductions like "Hi, I'm John" or "My name is Sarah".
 - Be CONSISTENT - same transcript should always give same scores.
-- SUMMARY VERDICT: Write exactly 50-100 words providing comprehensive analysis of the candidate's performance, communication style, strengths, areas for improvement, and overall assessment.
+- SUMMARY VERDICT: Write exactly 5-10 sentences providing comprehensive analysis of the candidate's performance, communication style, strengths, areas for improvement, and overall assessment.
 - Do NOT give 9–10 unless performance is clearly exceptional
 - Most overall scores SHOULD fall between 5–9
 - If transcript is short, unclear, or casual → penalize
@@ -59,7 +59,7 @@ RETURN JSON IN EXACTLY THIS FORMAT:
   "interviewer_name": string | null,
   "interviewee_name": string | null,
   "summary": {
-    "verdict": "A comprehensive 50-100 word summary analyzing the candidate's overall interview performance, communication effectiveness, and key observations",
+    "verdict": "A comprehensive 5-10 sentence summary analyzing the candidate's overall interview performance, communication effectiveness, and key observations",
     "strengths": [string],
     "primary_issues": [string]
   },
