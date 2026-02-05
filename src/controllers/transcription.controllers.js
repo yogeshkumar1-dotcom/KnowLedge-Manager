@@ -54,7 +54,8 @@ const createTranscript = asyncHandler(async (req, res) => {
   
   try {
     // Gemini-based scoring
-    const scoring = await scoreInterview(transcriptText);
+    const scoring = await scoreInterview(transcriptText, interview.candidateName, req.body.customApiKey, req.body.selectedModel);
+    console.log("Gemini scoring completed");
     
     // AssemblyAI LLM analysis (if transcript ID available)
     if (assemblyaiTranscriptId) {

@@ -1,19 +1,79 @@
 import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const genAI = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_GENAI_API_KEY
-});
-
-export const scoreInterview = async (transcript) => {
-  let timeoutHandle;
-  
+export const scoreInterview = async (transcript, candidateName = null, customApiKey = null, selectedModel = null) => {
   try {
     console.log("Starting interview scoring...");
+    console.log("Selected model:", selectedModel);
     
-    const prompt = `
+    const model = selectedModel || "gemini-2.5-flash";
+    
+    // Determine if it's a GPT or Gemini model
+    const isGPTModel = model.includes('gpt');
+    
+    if (isGPTModel) {
+      return await scoreWithOpenAI(transcript, candidateName, customApiKey, model);
+    } else {
+      return await scoreWithGemini(transcript, candidateName, customApiKey, model);
+    }
+  } catch (error) {
+    console.error("Error in scoreInterview:", error.message);
+    throw error;
+  }
+};
+
+// OpenAI scoring function
+const scoreWithOpenAI = async (transcript, candidateName, customApiKey, model) => {
+  const apiKey = customApiKey || process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("OpenAI API key not configured");
+  }
+  
+  const openai = new OpenAI({ apiKey });
+  
+  const prompt = getAnalysisPrompt(transcript, candidateName);
+  
+  const response = await openai.chat.completions.create({
+    model: model,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0,
+    max_tokens: 4096,
+  });
+  
+  const rawText = response.choices[0].message.content;
+  return parseResponse(rawText);
+};
+
+// Gemini scoring function
+const scoreWithGemini = async (transcript, candidateName, customApiKey, model) => {
+  const apiKey = customApiKey || process.env.GOOGLE_GENAI_API_KEY;
+  
+  const genAI = new GoogleGenAI({ apiKey });
+  
+  const prompt = getAnalysisPrompt(transcript, candidateName);
+  
+  const modelResponse = await genAI.models.generateContent({
+    model: model,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 4096,
+    }
+  });
+  
+  const rawText = modelResponse.candidates[0].content.parts[0].text;
+  return parseResponse(rawText);
+};
+
+// Shared prompt generation
+const getAnalysisPrompt = (transcript, candidateName) => {
+  const candidateInfo = candidateName ? `\nCandidate Name (from filename): ${candidateName}` : '';
+  
+  return `
 You are an expert interview communication coach like professional tools (e.g. Yoodli-style analysis).
 
 RULES (VERY IMPORTANT):
@@ -28,6 +88,11 @@ RULES (VERY IMPORTANT):
 - Extract actual names mentioned in the conversation, not just "Speaker A" or "Speaker B".
 - Look for introductions like "Hi, I'm John" or "My name is Sarah".
 - Be CONSISTENT - same transcript should always give same scores.
+- SUMMARY VERDICT: Write exactly 50-100 words providing comprehensive analysis of the candidate's performance, communication style, strengths, areas for improvement, and overall assessment.
+- Do NOT give 9–10 unless performance is clearly exceptional
+- Most overall scores SHOULD fall between 5–9
+- If transcript is short, unclear, or casual → penalize
+- Scores must be CONSISTENT across candidates${candidateInfo}
 
 SCORING WEIGHTS:
 - Fluency: 25%
@@ -51,7 +116,7 @@ RETURN JSON IN EXACTLY THIS FORMAT:
   "interviewer_name": string | null,
   "interviewee_name": string | null,
   "summary": {
-    "verdict": string,
+    "verdict": "A comprehensive 50-100 word summary analyzing the candidate's overall interview performance, communication effectiveness, and key observations",
     "strengths": [string],
     "primary_issues": [string]
   },
@@ -96,89 +161,27 @@ IMPORTANT:
 - No explanations.
 - Be CONSISTENT with scoring.
 `;
+};
 
-    // Create a timeout promise that we can clear
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutHandle = setTimeout(() => {
-        reject(new Error('LLM request timeout after 2 minutes'));
-      }, 120000); // 2 minutes - Gemini is usually fast
-    });
+// Shared response parsing
+const parseResponse = (rawText) => {
+  try {
+    let cleanText = rawText.trim();
     
-    // Race between Gemini response and timeout
-    const response = await Promise.race([
-      genAI.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 4096,
-        }
-      }),
-      timeoutPromise
-    ]);
-
-    // Clear timeout if response succeeded
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
+    // Remove markdown code blocks if present
+    if (cleanText.startsWith('```json')) {
+      cleanText = cleanText.replace(/```json\s*/, '').replace(/\s*```$/, '');
     }
-
-    console.log("LLM response received");
-    
-    const rawText = response.candidates[0].content.parts[0].text;
-    console.log("Raw response length:", rawText.length);
-
-    try {
-      // Clean the response text
-      let cleanText = rawText.trim();
-      
-      // Remove markdown code blocks if present
-      if (cleanText.startsWith('```json')) {
-        cleanText = cleanText.replace(/```json\s*/, '').replace(/\s*```$/, '');
-      }
-      if (cleanText.startsWith('```')) {
-        cleanText = cleanText.replace(/```\s*/, '').replace(/\s*```$/, '');
-      }
-      
-      const result = JSON.parse(cleanText);
-      console.log("JSON parsed successfully");
-      return result;
-    } catch (parseError) {
-      console.error("JSON parse error:", parseError);
-      console.error("Full raw text:", rawText);
-      throw new Error("Invalid JSON returned by Gemini");
-    }
-  } catch (error) {
-    // Clear timeout on error
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/```\s*/, '').replace(/\s*```$/, '');
     }
     
-    console.error("Error in scoreInterview:", error.message);
-    
-    // Return a default safe response instead of crashing
-    if (error.message.includes('timeout')) {
-      console.error("LLM request timed out. Returning default scoring.");
-      return {
-        overall_communication_score: 5.0,
-        interviewer_name: null,
-        interviewee_name: null,
-        summary: {
-          verdict: "Could not complete analysis - service timeout",
-          strengths: [],
-          primary_issues: ["Analysis service timeout - please retry"]
-        },
-        speech_metrics: {
-          words_per_minute: 0,
-          pause_analysis: { long_pauses_detected: false, average_pause_duration_seconds: 0 },
-          filler_words: { total_count: 0, fillers_per_minute: 0, most_common_fillers: [] },
-          repetition: { repeated_words_detected: false, examples: [] }
-        },
-        language_quality: { grammar_score: 0, clarity_score: 0, fluency_score: 0, incorrect_or_awkward_phrases: [] },
-        communication_skills: { confidence_score: 0, structure_score: 0, relevance_score: 0, engagement_score: 0 },
-        coaching_feedback: { what_went_well: [], what_to_improve: ["Retry analysis"], actionable_tips: [] }
-      };
-    }
-    
-    throw error;
+    const result = JSON.parse(cleanText);
+    console.log("JSON parsed successfully");
+    return result;
+  } catch (parseError) {
+    console.error("JSON parse error:", parseError);
+    console.error("Full raw text:", rawText);
+    throw new Error("Invalid JSON returned by LLM");
   }
 };
