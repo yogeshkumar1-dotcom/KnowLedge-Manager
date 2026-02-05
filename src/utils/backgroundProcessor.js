@@ -1,14 +1,18 @@
 import { createTranscript } from '../controllers/transcription.controllers.js';
 
 // Background processing for interviews
-export const processInterviewInBackground = async (interviewId) => {
+export const processInterviewInBackground = async (interviewId, aiConfig = {}) => {
   try {
     console.log(`Starting background processing for interview: ${interviewId}`);
     
     // Create mock request object for transcription processing
     const mockReq = {
       interviewId,
-      fileType: 'audio'
+      fileType: 'audio',
+      body: {
+        customApiKey: aiConfig.customApiKey,
+        selectedModel: aiConfig.selectedModel
+      }
     };
     
     const mockRes = {

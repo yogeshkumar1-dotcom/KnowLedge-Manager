@@ -7,6 +7,7 @@ import Upload from './pages/Upload';
 import UpdateStatus from './pages/UpdateStatus';
 import Login from './pages/Login';
 import InterviewDetails from './pages/InterviewDetails';
+import AIConfiguration from './pages/AIConfiguration';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
@@ -23,6 +24,7 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="upload" element={<Upload />} />
+              <Route path="ai-config" element={<AIConfiguration />} />
               <Route path="transcripts" element={<Transcripts />} />
               <Route path="recent-activities" element={<Transcripts />} />
               <Route path="interview/:id" element={<InterviewDetails />} />

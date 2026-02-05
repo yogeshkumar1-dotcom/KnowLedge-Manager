@@ -2,6 +2,7 @@ import { Interview } from '../models/interview.models.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import { generateInterviewPDF, generatePDFFromHTML } from '../services/pdfReportGenerator.services.js';
 
 /**
  * GET ALL INTERVIEWS
@@ -98,4 +99,65 @@ export const updateInterviewScore = asyncHandler(async (req, res) => {
   res.status(200).json(
     new ApiResponse(200, interview, 'Interview scored successfully')
   );
+});
+
+/**
+ * GENERATE PDF REPORT
+ * Generate and download PDF report for an interview
+ */
+export const generatePDFReport = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const interview = await Interview.findById(id)
+    .populate('userId', 'name email');
+
+  if (!interview) {
+    throw new ApiError(404, 'Interview not found');
+  }
+
+  if (interview.status !== 'scored') {
+    throw new ApiError(400, 'Interview must be scored before generating PDF report');
+  }
+
+  try {
+    const pdfBuffer = await generateInterviewPDF(interview);
+    
+    const fileName = `Interview_Report_${interview.candidateName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    throw new ApiError(500, 'Failed to generate PDF report');
+  }
+});
+
+/**
+ * GENERATE BULK PDF REPORT
+ * Generate PDF from HTML content (for multiple interviews)
+ */
+export const generateBulkPDF = asyncHandler(async (req, res) => {
+  const { htmlContent, filename } = req.body;
+
+  if (!htmlContent) {
+    throw new ApiError(400, 'HTML content is required');
+  }
+
+  try {
+    const pdfBuffer = await generatePDFFromHTML(htmlContent);
+    
+    const pdfFileName = filename || `bulk_interview_report_${new Date().toISOString().split('T')[0]}.pdf`;
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${pdfFileName}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Bulk PDF generation error:', error);
+    throw new ApiError(500, 'Failed to generate bulk PDF report');
+  }
 });

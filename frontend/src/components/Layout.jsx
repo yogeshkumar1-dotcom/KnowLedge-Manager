@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import axiosInstance from '../utils/axios';
 import {
   CloudArrowUpIcon,
-  ArrowRightOnRectangleIcon
+  ArrowRightOnRectangleIcon,
+  CogIcon
 } from '@heroicons/react/24/outline';
 
 const Layout = () => {
@@ -15,6 +16,7 @@ const Layout = () => {
   // Updated navigation according to request
   const navigation = [
     { name: 'Upload', href: '/upload', icon: CloudArrowUpIcon },
+    { name: 'AI Configuration', href: '/ai-config', icon: CogIcon },
   ];
 
   const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);

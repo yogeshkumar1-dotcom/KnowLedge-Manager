@@ -1,22 +1,79 @@
 import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const genAI = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_GENAI_API_KEY
-});
-
-export const scoreInterview = async (transcript) => {
+export const scoreInterview = async (transcript, candidateName = null, customApiKey = null, selectedModel = null) => {
   try {
     console.log("Starting interview scoring...");
+    console.log("Selected model:", selectedModel);
     
-    // Add timeout wrapper - increased to 3 minutes
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('LLM request timeout after 300 seconds')), 300000);
-    });
+    const model = selectedModel || "gemini-2.5-flash";
     
-    const prompt = `
+    // Determine if it's a GPT or Gemini model
+    const isGPTModel = model.includes('gpt');
+    
+    if (isGPTModel) {
+      return await scoreWithOpenAI(transcript, candidateName, customApiKey, model);
+    } else {
+      return await scoreWithGemini(transcript, candidateName, customApiKey, model);
+    }
+  } catch (error) {
+    console.error("Error in scoreInterview:", error.message);
+    throw error;
+  }
+};
+
+// OpenAI scoring function
+const scoreWithOpenAI = async (transcript, candidateName, customApiKey, model) => {
+  const apiKey = customApiKey || process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("OpenAI API key not configured");
+  }
+  
+  const openai = new OpenAI({ apiKey });
+  
+  const prompt = getAnalysisPrompt(transcript, candidateName);
+  
+  const response = await openai.chat.completions.create({
+    model: model,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0,
+    max_tokens: 4096,
+  });
+  
+  const rawText = response.choices[0].message.content;
+  return parseResponse(rawText);
+};
+
+// Gemini scoring function
+const scoreWithGemini = async (transcript, candidateName, customApiKey, model) => {
+  const apiKey = customApiKey || process.env.GOOGLE_GENAI_API_KEY;
+  
+  const genAI = new GoogleGenAI({ apiKey });
+  
+  const prompt = getAnalysisPrompt(transcript, candidateName);
+  
+  const modelResponse = await genAI.models.generateContent({
+    model: model,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 4096,
+    }
+  });
+  
+  const rawText = modelResponse.candidates[0].content.parts[0].text;
+  return parseResponse(rawText);
+};
+
+// Shared prompt generation
+const getAnalysisPrompt = (transcript, candidateName) => {
+  const candidateInfo = candidateName ? `\nCandidate Name (from filename): ${candidateName}` : '';
+  
+  return `
 You are an expert interview communication coach like professional tools (e.g. Yoodli-style analysis).
 
 RULES (VERY IMPORTANT):
@@ -31,11 +88,11 @@ RULES (VERY IMPORTANT):
 - Extract actual names mentioned in the conversation, not just "Speaker A" or "Speaker B".
 - Look for introductions like "Hi, I'm John" or "My name is Sarah".
 - Be CONSISTENT - same transcript should always give same scores.
-- SUMMARY VERDICT: Write exactly 5-10 sentences providing comprehensive analysis of the candidate's performance, communication style, strengths, areas for improvement, and overall assessment.
+- SUMMARY VERDICT: Write exactly 50-100 words providing comprehensive analysis of the candidate's performance, communication style, strengths, areas for improvement, and overall assessment.
 - Do NOT give 9–10 unless performance is clearly exceptional
 - Most overall scores SHOULD fall between 5–9
 - If transcript is short, unclear, or casual → penalize
-- Scores must be CONSISTENT across candidates
+- Scores must be CONSISTENT across candidates${candidateInfo}
 
 SCORING WEIGHTS:
 - Fluency: 25%
@@ -59,7 +116,7 @@ RETURN JSON IN EXACTLY THIS FORMAT:
   "interviewer_name": string | null,
   "interviewee_name": string | null,
   "summary": {
-    "verdict": "A comprehensive 5-10 sentence summary analyzing the candidate's overall interview performance, communication effectiveness, and key observations",
+    "verdict": "A comprehensive 50-100 word summary analyzing the candidate's overall interview performance, communication effectiveness, and key observations",
     "strengths": [string],
     "primary_issues": [string]
   },
@@ -104,44 +161,27 @@ IMPORTANT:
 - No explanations.
 - Be CONSISTENT with scoring.
 `;
+};
 
-    const modelResponse = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 4096,
-      }
-    });
-
-    const response = await Promise.race([modelResponse, timeoutPromise]);
-    console.log("LLM response received");
+// Shared response parsing
+const parseResponse = (rawText) => {
+  try {
+    let cleanText = rawText.trim();
     
-    const rawText = response.candidates[0].content.parts[0].text;
-    console.log("Raw response length:", rawText.length);
-
-    try {
-      // Clean the response text
-      let cleanText = rawText.trim();
-      
-      // Remove markdown code blocks if present
-      if (cleanText.startsWith('```json')) {
-        cleanText = cleanText.replace(/```json\s*/, '').replace(/\s*```$/, '');
-      }
-      if (cleanText.startsWith('```')) {
-        cleanText = cleanText.replace(/```\s*/, '').replace(/\s*```$/, '');
-      }
-      
-      const result = JSON.parse(cleanText);
-      console.log("JSON parsed successfully");
-      return result;
-    } catch (parseError) {
-      console.error("JSON parse error:", parseError);
-      console.error("Full raw text:", rawText);
-      throw new Error("Invalid JSON returned by Gemini");
+    // Remove markdown code blocks if present
+    if (cleanText.startsWith('```json')) {
+      cleanText = cleanText.replace(/```json\s*/, '').replace(/\s*```$/, '');
     }
-  } catch (error) {
-    console.error("Error in scoreInterview:", error.message);
-    throw error;
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    const result = JSON.parse(cleanText);
+    console.log("JSON parsed successfully");
+    return result;
+  } catch (parseError) {
+    console.error("JSON parse error:", parseError);
+    console.error("Full raw text:", rawText);
+    throw new Error("Invalid JSON returned by LLM");
   }
 };

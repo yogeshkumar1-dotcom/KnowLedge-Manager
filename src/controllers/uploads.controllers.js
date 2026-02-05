@@ -17,12 +17,12 @@ const uploadFiles = asyncHandler(async (req, res, next) => {
   if (req.file) {
     return handleSingleFile(req, res, next);
   }
-  
+
   // Handle multiple files upload
   if (req.files && req.files.length > 0) {
     return handleMultipleFiles(req, res);
   }
-  
+
   throw new ApiError(400, "No files uploaded");
 });
 
@@ -30,12 +30,12 @@ const uploadFiles = asyncHandler(async (req, res, next) => {
 const handleSingleFile = asyncHandler(async (req, res, next) => {
   const file = req.file;
   const fileHash = crypto.createHash('md5').update(file.buffer).digest('hex');
-  
+
   const existingInterview = await Interview.findOne({ fileHash, status: 'scored' }).sort({ createdAt: -1 });
   if (existingInterview) {
     return res.status(200).json(new ApiResponse(200, { interview: existingInterview }, "File already processed"));
   }
-  
+
   const [fileType] = file.mimetype.split("/");
   let fileUrl, fileName = "", transcriptText = "", processedBuffer = file.buffer;
 
@@ -56,15 +56,20 @@ const handleSingleFile = asyncHandler(async (req, res, next) => {
   }
 
   const interview = await Interview.create({
-    userId: req.body.userId, 
+    userId: req.body.userId,
     candidateName: req.body.candidateName || extractCandidateFromFilename(file.originalname) || "Unknown Candidate",
-    position: req.body.position || "Unknown Position", 
+    position: req.body.position || "Unknown Position",
     interviewDate: req.body.meetingDate || new Date(),
     fileName, transcriptText, fileHash, status: transcriptText ? "processing" : "pending"
   });
 
   req.interviewId = interview._id; req.transcriptText = transcriptText; req.fileUrl = fileUrl;
   req.fileType = fileType === "video" ? "audio" : fileType; req.date = req.body.meetingDate;
+
+  // Pass AI configuration to next middleware
+  req.body.customApiKey = req.body.customApiKey;
+  req.body.selectedModel = req.body.selectedModel;
+
   next();
 });
 
@@ -73,13 +78,13 @@ const handleMultipleFiles = asyncHandler(async (req, res) => {
   const files = req.files;
   const processingPromises = files.map(file => processFileIndependently(file, req.body));
   const processedResults = await Promise.allSettled(processingPromises);
-  
+
   const results = processedResults.map((result, index) => ({
     file: files[index].originalname,
     status: result.status === 'fulfilled' ? 'success' : 'error',
     ...(result.status === 'fulfilled' ? { interview: result.value } : { error: result.reason.message })
   }));
-  
+
   res.status(200).json(new ApiResponse(200, { results, totalFiles: files.length }, "Multiple files processed"));
 });
 
@@ -88,10 +93,10 @@ const processFileIndependently = async (file, bodyData) => {
   const fileHash = crypto.createHash('md5').update(file.buffer).digest('hex');
   const existingInterview = await Interview.findOne({ fileHash, status: 'scored' }).sort({ createdAt: -1 });
   if (existingInterview) return existingInterview;
-  
+
   const [fileType] = file.mimetype.split("/");
   let fileUrl, fileName = "", transcriptText = "";
-  
+
   if (fileType === "video") {
     const processedBuffer = await extractAudioFromVideo(file.buffer, file.originalname);
     const tempFileName = file.originalname.replace(/\.[^/.]+$/, ".wav");
@@ -107,17 +112,20 @@ const processFileIndependently = async (file, bodyData) => {
   } else {
     throw new Error("Unsupported file type");
   }
-  
+
   const interview = await Interview.create({
-    userId: bodyData.userId, 
+    userId: bodyData.userId,
     candidateName: bodyData.candidateName || extractCandidateFromFilename(file.originalname) || "Unknown Candidate",
-    position: bodyData.position || "Unknown Position", 
+    position: bodyData.position || "Unknown Position",
     interviewDate: bodyData.meetingDate || new Date(),
     fileName, transcriptText, fileHash, status: "pending"
   });
-  
-  // Trigger background processing
-  processInterviewInBackground(interview._id);
+  console.log(`Interview created with ID: ${interview._id}`);
+  // Trigger background processing with AI configuration
+  processInterviewInBackground(interview._id, {
+    customApiKey: bodyData.customApiKey,
+    selectedModel: bodyData.selectedModel
+  });
   return interview;
 };
 

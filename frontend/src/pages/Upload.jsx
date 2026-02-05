@@ -180,6 +180,11 @@ const Upload = () => {
     setUploadProgress(0);
     setMessage("");
 
+    // Get AI configuration from localStorage
+    const isUsingCustomKey = localStorage.getItem('isUsingCustomKey') === 'true';
+    const customApiKey = isUsingCustomKey ? localStorage.getItem('customApiKey') : null;
+    const selectedModel = localStorage.getItem('selectedModel') || 'gemini-2.5-flash';
+
     const formData = new FormData();
     if (files.length === 1) {
       formData.append("file", files[0]);
@@ -190,6 +195,12 @@ const Upload = () => {
     }
     formData.append("userId", user?._id || user?.id || "");
     formData.append("meetingDate", meetingDate);
+    
+    // Only add custom API key if user explicitly enabled it
+    if (isUsingCustomKey && customApiKey) {
+      formData.append("customApiKey", customApiKey);
+    }
+    formData.append("selectedModel", selectedModel);
 
     try {
       const endpoint =
