@@ -1,5 +1,6 @@
 import express from "express";
 import { uploadFiles } from "../controllers/uploads.controllers.js";
+import { uploadFromGoogleDrive, getGoogleDriveFileInfo } from "../controllers/googleDrive.controllers.js";
 import upload from "../utils/audioMulter.js";
 import { createTranscript } from "../controllers/transcription.controllers.js";
 
@@ -31,5 +32,13 @@ router.post("/file", (req, res, next) => {
     next();
   });
 }, uploadFiles, createTranscript);
+
+// Google Drive upload route
+// 1. uploadFromGoogleDrive downloads file from Google Drive and processes it
+// 2. createTranscript handles AI transcription and analysis
+router.post("/google-drive", uploadFromGoogleDrive, createTranscript);
+
+// Get Google Drive file metadata
+router.post("/google-drive/info", getGoogleDriveFileInfo);
 
 export default router;

@@ -40,6 +40,9 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    googleDriveAccessToken: {
+      type: String, // Store Google Drive OAuth access token
+    },
     personalNoteIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Note' }],
   },
   { timestamps: true }

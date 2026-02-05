@@ -8,13 +8,10 @@ const genAI = new GoogleGenAI({
 });
 
 export const scoreInterview = async (transcript) => {
+  let timeoutHandle;
+  
   try {
     console.log("Starting interview scoring...");
-    
-    // Add timeout wrapper - increased to 3 minutes
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('LLM request timeout after 180 seconds')), 180000);
-    });
     
     const prompt = `
 You are an expert interview communication coach like professional tools (e.g. Yoodli-style analysis).
@@ -100,16 +97,31 @@ IMPORTANT:
 - Be CONSISTENT with scoring.
 `;
 
-    const modelResponse = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 4096,
-      }
+    // Create a timeout promise that we can clear
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(new Error('LLM request timeout after 2 minutes'));
+      }, 120000); // 2 minutes - Gemini is usually fast
     });
+    
+    // Race between Gemini response and timeout
+    const response = await Promise.race([
+      genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 4096,
+        }
+      }),
+      timeoutPromise
+    ]);
 
-    const response = await Promise.race([modelResponse, timeoutPromise]);
+    // Clear timeout if response succeeded
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+
     console.log("LLM response received");
     
     const rawText = response.candidates[0].content.parts[0].text;
@@ -136,7 +148,37 @@ IMPORTANT:
       throw new Error("Invalid JSON returned by Gemini");
     }
   } catch (error) {
+    // Clear timeout on error
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+    
     console.error("Error in scoreInterview:", error.message);
+    
+    // Return a default safe response instead of crashing
+    if (error.message.includes('timeout')) {
+      console.error("LLM request timed out. Returning default scoring.");
+      return {
+        overall_communication_score: 5.0,
+        interviewer_name: null,
+        interviewee_name: null,
+        summary: {
+          verdict: "Could not complete analysis - service timeout",
+          strengths: [],
+          primary_issues: ["Analysis service timeout - please retry"]
+        },
+        speech_metrics: {
+          words_per_minute: 0,
+          pause_analysis: { long_pauses_detected: false, average_pause_duration_seconds: 0 },
+          filler_words: { total_count: 0, fillers_per_minute: 0, most_common_fillers: [] },
+          repetition: { repeated_words_detected: false, examples: [] }
+        },
+        language_quality: { grammar_score: 0, clarity_score: 0, fluency_score: 0, incorrect_or_awkward_phrases: [] },
+        communication_skills: { confidence_score: 0, structure_score: 0, relevance_score: 0, engagement_score: 0 },
+        coaching_feedback: { what_went_well: [], what_to_improve: ["Retry analysis"], actionable_tips: [] }
+      };
+    }
+    
     throw error;
   }
 };

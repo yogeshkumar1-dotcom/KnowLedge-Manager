@@ -17,39 +17,58 @@ export const extractAudioFromVideo = (videoBuffer, originalName) => {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const videoPath = path.join(tempDir, `video_${Date.now()}_${sanitizedName}`);
+    const sanitizedName = (originalName || 'uploaded').replace(/[^a-zA-Z0-9.-]/g, '_');
+    // Derive extension from originalName if present, default to mp4
+    const extMatch = (originalName || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+    const inputExt = extMatch ? extMatch[1] : 'mp4';
+    const videoPath = path.join(tempDir, `video_${Date.now()}_${sanitizedName}.${inputExt}`);
     const audioPath = path.join(tempDir, `audio_${Date.now()}.wav`);
 
-    // Write video buffer to temp file
+    // Write video buffer to temp file (with extension)
     fs.writeFileSync(videoPath, videoBuffer);
 
-    ffmpeg(videoPath)
+    const proc = ffmpeg(videoPath)
       .output(audioPath)
       .audioCodec('pcm_s16le')
       .audioFrequency(16000)
       .audioChannels(1)
       .audioBitrate('32k') // Lower bitrate for faster processing
-      .noVideo() // Skip video processing
-      .on('end', () => {
-        try {
-          const audioBuffer = fs.readFileSync(audioPath);
-          
-          // Cleanup temp files
-          fs.unlinkSync(videoPath);
-          fs.unlinkSync(audioPath);
-          
-          resolve(audioBuffer);
-        } catch (error) {
-          reject(error);
-        }
-      })
-      .on('error', (error) => {
-        // Cleanup on error
-        if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
-        if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      .noVideo(); // Skip video processing
+
+    // Verbose logging for diagnostics
+    proc.on('start', (cmd) => {
+      console.log('ffmpeg start:', cmd);
+    });
+    proc.on('stderr', (line) => {
+      // ffmpeg stderr can contain useful warnings/errors
+      console.log('ffmpeg stderr:', line);
+    });
+    proc.on('progress', (progress) => {
+      console.log('ffmpeg progress:', progress);
+    });
+
+    proc.on('end', () => {
+      try {
+        const audioBuffer = fs.readFileSync(audioPath);
+
+        // Cleanup temp files
+        try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch (e) {}
+        try { if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath); } catch (e) {}
+
+        resolve(audioBuffer);
+      } catch (error) {
         reject(error);
-      })
-      .run();
+      }
+    });
+
+    proc.on('error', (error) => {
+      // Cleanup on error
+      try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch (e) {}
+      try { if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath); } catch (e) {}
+      console.error('ffmpeg error:', error.message || error);
+      reject(error);
+    });
+
+    proc.run();
   });
 };

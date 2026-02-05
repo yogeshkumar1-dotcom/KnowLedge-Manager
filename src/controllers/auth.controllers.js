@@ -17,6 +17,7 @@ export const googleAuthUrl = asyncHandler(async (req, res) => {
   const scope = [
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/drive.readonly", // Added for Google Drive access
   ].join(" ");
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUrl}&scope=${scope}&access_type=offline&prompt=consent&hd=grazitti.com`;
@@ -73,10 +74,10 @@ export const googleAuthCallback = asyncHandler(async (req, res) => {
       isActive: true,
       role: "EMPLOYEE",
     });
-    await user.save();
   }
   const refreshToken = user.generateRefreshToken();
   user.refreshToken = refreshToken;
+  user.googleDriveAccessToken = accessToken; // Store Google Drive access token
   await user.save();
   const accessTokenJWT = user.generateAccessToken();
   res.cookie("refreshToken", refreshToken, {
@@ -97,6 +98,15 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
   res.status(200).json(new ApiResponse(200, user, "User profile retrieved successfully"));
+});
+
+// Get Google Drive access token for the logged-in user
+export const getGoogleDriveToken = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select('googleDriveAccessToken');
+  if (!user || !user.googleDriveAccessToken) {
+    throw new ApiError(404, "Google Drive access token not found. Please log in with Google Drive scope.");
+  }
+  res.status(200).json(new ApiResponse(200, { token: user.googleDriveAccessToken }, "Google Drive token retrieved successfully"));
 });
 
 // Logout user
