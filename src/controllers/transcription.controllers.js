@@ -55,16 +55,14 @@ const createTranscript = asyncHandler(async (req, res) => {
   try {
     // Gemini-based scoring
     const scoring = await scoreInterview(transcriptText);
-    console.log("Gemini scoring completed");
     
     // AssemblyAI LLM analysis (if transcript ID available)
     if (assemblyaiTranscriptId) {
       try {
         assemblyaiAnalysis = await analyzeInterviewWithAssemblyAI(assemblyaiTranscriptId);
         assemblyaiInsights = await getTranscriptInsights(assemblyaiTranscriptId);
-        console.log("AssemblyAI analysis completed");
       } catch (error) {
-        console.error('AssemblyAI analysis failed:', error.message);
+        // Silently handle AssemblyAI analysis failures
       }
     }
     
@@ -91,9 +89,9 @@ const createTranscript = asyncHandler(async (req, res) => {
       },
       { new: true }
     );
+    
     interviewScore = updatedInterview;
   } catch (error) {
-    console.error('Error scoring interview:', error);
     interview.status = 'pending';
     await interview.save();
   }

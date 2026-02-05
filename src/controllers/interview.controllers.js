@@ -9,7 +9,7 @@ export const getInterviews = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, status } = req.query;
   
   const filter = {};
-  if (status) filter.status = status;
+  if (status) filter.status = status ;
   
   const interviews = await Interview.find(filter)
     .populate('userId', 'name email')
