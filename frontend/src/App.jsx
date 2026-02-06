@@ -11,6 +11,8 @@ import AIConfiguration from './pages/AIConfiguration';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AIInterviewPage from './pages/AIInterviewPage';
+import AIInterviewSessions from './pages/AIInterviewSessions';
+import AIInterviewDetails from './pages/AIInterviewDetails';
 import './App.css';
 
 function App() {
@@ -29,6 +31,8 @@ function App() {
               <Route path="transcripts" element={<Transcripts />} />
               <Route path="recent-activities" element={<Transcripts />} />
               <Route path="ai-interviewer" element={<AIInterviewPage />} />
+              <Route path="ai-interview-sessions" element={<AIInterviewSessions />} />
+              <Route path="ai-interview-details/:id" element={<AIInterviewDetails />} />
               <Route path="interview/:id" element={<InterviewDetails />} />
             </Route>
           </Routes>

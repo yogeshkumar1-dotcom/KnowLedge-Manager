@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { config } from '../config/config.js';
 import { scoreInterview } from './interviewScoring.services.js';
 import { Interview } from '../models/interview.models.js';
+import mongoose from 'mongoose';
 
 const genAI = new GoogleGenAI({ apiKey: config.GOOGLE_GENAI_API_KEY });
 
@@ -96,15 +97,38 @@ Have a great day.`;
 
     session.status = 'COMPLETED';
 
-    // Consolidate Transcript
     const fullTranscript = session.history.map(h => `${h.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${h.content}`).join('\n\n');
     session.transcript = fullTranscript;
     await session.save();
 
     try {
         const scoreResult = await scoreInterview(fullTranscript, session.candidateName);
+        
+        // Create Interview record for dashboard
+        const interview = new Interview({
+            userId: session.userId || new mongoose.Types.ObjectId(),
+            candidateName: session.candidateName,
+            interviewDate: session.startTime,
+            fileName: `AI_Interview_${session.candidateName}_${new Date().toISOString().split('T')[0]}.txt`,
+            fileHash: `ai_${session._id}`,
+            transcriptText: fullTranscript,
+            overall_communication_score: scoreResult.overall_communication_score || 0,
+            interviewer_name: 'Alex (AI)',
+            interviewee_name: session.candidateName,
+            summary: scoreResult.summary,
+            speech_metrics: scoreResult.speech_metrics,
+            language_quality: scoreResult.language_quality,
+            communication_skills: scoreResult.communication_skills,
+            coaching_feedback: scoreResult.coaching_feedback,
+            status: 'scored',
+            isAIInterview: true
+        });
+        
+        await interview.save();
+        
         return {
             sessionId: session._id,
+            interviewId: interview._id,
             message: closingScript,
             status: 'COMPLETED',
             analysis: scoreResult
@@ -140,7 +164,9 @@ const generateNextQuestion = async (session) => {
   Next Question:
   `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    const result = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt
+    });
+    return result.text;
 };

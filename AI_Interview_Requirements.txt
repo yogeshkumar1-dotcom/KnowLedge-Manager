@@ -3,7 +3,7 @@ AI-Based Real-Time Communication Assessment Interview Platform
 1. PURPOSE & SCOPE
 1.1 Purpose
 
-The purpose of this platform is to conduct real-time, AI-led spoken interviews to assess a candidate’s communication skills in a professional, corporate interview setting.
+The purpose of this platform is to conduct real-time, AI-led spoken interviews to assess a candidate's communication skills in a professional, corporate interview setting.
 
 The system must simulate a human interviewer, conduct a 5–10 minute live interview, record audio/video, and generate a post-interview communication assessment report.
 
@@ -88,7 +88,7 @@ This interview will last approximately {{duration_minutes}} minutes.
 I will ask you a series of questions one at a time.
 Please answer naturally, as you would in a real workplace conversation.
 
-If you are ready, let’s begin."
+If you are ready, let's begin."
 
 No deviation allowed.
 

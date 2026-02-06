@@ -316,6 +316,11 @@ const Dashboard = () => {
                         <CalendarIcon className="h-4 w-4 mr-1" />
                         {recording.createdAt ? new Date(recording.createdAt).toLocaleDateString() : 'Unknown Date'}
                       </span>
+                      {recording.isAIInterview && (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">
+                          AI Interviewed
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

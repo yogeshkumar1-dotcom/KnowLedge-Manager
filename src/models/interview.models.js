@@ -78,6 +78,10 @@ const interviewSchema = new mongoose.Schema({
     what_to_improve: [String],
     actionable_tips: [String]
   },
+  isAIInterview: {
+    type: Boolean,
+    default: false
+  },
   status: {
     type: String,
     enum: ['pending', 'processing', 'scored', 'reviewed'],

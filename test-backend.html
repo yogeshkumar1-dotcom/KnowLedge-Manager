@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Test</title>
+</head>
+<body>
+    <h1>Backend Connection Test</h1>
+    <button onclick="testBackend()">Test Backend</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testBackend() {
+            const result = document.getElementById('result');
+            result.textContent = 'Testing...';
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/v1/ai-interviewer/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        candidateName: 'Test User',
+                        role: 'Software Engineer',
+                        level: 'Mid-Senior',
+                        experience: '3',
+                        duration: 5
+                    })
+                });
+                
+                const data = await response.json();
+                result.textContent = 'SUCCESS!\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.textContent = 'ERROR: ' + error.message + '\n\nBackend is NOT running on http://localhost:3000';
+            }
+        }
+    </script>
+</body>
+</html>

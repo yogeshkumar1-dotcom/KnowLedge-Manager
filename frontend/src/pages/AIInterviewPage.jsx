@@ -78,7 +78,7 @@ const AIInterviewPage = () => {
                                 value={formData.duration}
                                 onChange={(e) => setFormData({ ...formData, duration: Number(e.target.value) })}
                             >
-                                <option value={5}>5 Minutes</option>
+                                <option value={1}>1 Minutes</option>
                                 <option value={10}>10 Minutes</option>
                             </select>
                         </div>
