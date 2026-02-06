@@ -5,7 +5,8 @@ import axiosInstance from '../utils/axios';
 import {
   CloudArrowUpIcon,
   ArrowRightOnRectangleIcon,
-  CogIcon
+  CogIcon,
+  MicrophoneIcon
 } from '@heroicons/react/24/outline';
 
 const Layout = () => {
@@ -17,6 +18,7 @@ const Layout = () => {
   const navigation = [
     { name: 'Upload', href: '/upload', icon: CloudArrowUpIcon },
     { name: 'AI Configuration', href: '/ai-config', icon: CogIcon },
+    { name: 'AI Interviewer', href: '/ai-interviewer', icon: MicrophoneIcon },
   ];
 
   const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);

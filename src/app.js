@@ -4,6 +4,7 @@ import uploadRoutes from "./routes/upload.routes.js";
 import audioRoutes from "./routes/audio.routes.js";
 import transcriptionRoutes from "./routes/transcription.routes.js";
 import interviewRoutes from "./routes/interview.routes.js";
+import aiInterviewRoutes from "./routes/aiInterview.routes.js";
 import { config } from "./config/config.js";
 import cors from "cors";
 
@@ -21,6 +22,7 @@ app.use("/api/v1/auth", authRoutes)
 app.use('/api/v1/audio', audioRoutes);
 app.use('/api/v1/transcripts', transcriptionRoutes)
 app.use('/api/v1/interviews', interviewRoutes)
+app.use('/api/v1/ai-interviewer', aiInterviewRoutes);
 
 
 app.use((err, req, res, next) => {

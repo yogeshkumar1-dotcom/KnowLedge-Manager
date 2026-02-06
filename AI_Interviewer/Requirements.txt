@@ -1,0 +1,310 @@
+📘 REQUIREMENTS DOCUMENT
+AI-Based Real-Time Communication Assessment Interview Platform
+1. PURPOSE & SCOPE
+1.1 Purpose
+
+The purpose of this platform is to conduct real-time, AI-led spoken interviews to assess a candidate’s communication skills in a professional, corporate interview setting.
+
+The system must simulate a human interviewer, conduct a 5–10 minute live interview, record audio/video, and generate a post-interview communication assessment report.
+
+1.2 In Scope
+
+Real-time AI interviewer
+
+Live audio & video recording
+
+Spoken conversation only (no chat-based interview)
+
+Communication-focused evaluation
+
+Automated post-interview analysis
+
+1.3 Out of Scope
+
+Technical/domain skill assessment
+
+Live scoring during interview
+
+Manual interviewer intervention
+
+Candidate feedback during interview
+
+2. USER ROLES
+2.1 Candidate
+
+Appears for interview
+
+Speaks naturally via mic and camera
+
+Does not see scores during interview
+
+2.2 Admin / Recruiter
+
+Creates interview configuration
+
+Views recordings, transcripts, and reports
+
+Downloads assessment results
+
+3. INTERVIEW CONFIGURATION INPUTS
+
+Before starting the interview, the following inputs are mandatory:
+
+Field	Description
+Candidate Name	Name of interviewee
+Role	Job role (e.g., Sales Executive, Manager)
+Designation / Level	Junior / Mid / Senior
+Experience (Optional)	Years of experience
+Interview Duration	5 or 10 minutes
+Interview Goal	Communication assessment only
+
+These inputs are passed dynamically to the AI interviewer.
+
+4. CORE FUNCTIONAL REQUIREMENTS
+4.1 Interview Session Lifecycle
+
+States (Must be strictly followed):
+
+IDLE
+→ INITIALIZING
+→ AI_SPEAKING
+→ CANDIDATE_SPEAKING
+→ SILENCE_WAIT
+→ PROCESSING
+→ NEXT_QUESTION
+→ END
+
+
+No two states may overlap.
+
+4.2 Interview Opening (Mandatory Script)
+
+The AI interviewer must start exactly with:
+
+"Hello {{candidate_name}},
+My name is Alex, and I will be conducting your communication assessment today.
+
+This interview will last approximately {{duration_minutes}} minutes.
+I will ask you a series of questions one at a time.
+Please answer naturally, as you would in a real workplace conversation.
+
+If you are ready, let’s begin."
+
+No deviation allowed.
+
+4.3 Question Flow Rules
+
+Only one question at a time
+
+Questions must be:
+
+Open-ended
+
+Communication-focused
+
+Role & designation aware
+
+Questions must never repeat
+
+Questions must adapt based on previous responses
+
+No yes/no questions
+
+4.4 Turn-Taking Rules (Critical)
+
+After the AI asks a question:
+
+AI must stop speaking
+
+AI listens attentively
+
+AI must not interrupt
+
+End of candidate response is detected by:
+
+Explicit verbal completion
+OR
+
+3 continuous seconds of silence
+
+Only then may the AI proceed.
+
+4.5 Answer Duration Control
+
+Ideal answer length: 60–90 seconds
+
+If answer exceeds reasonable length:
+
+AI politely guides candidate to conclude
+
+AI must not appear rushed or abrupt
+
+4.6 Interview Time Management
+
+System tracks total interview duration
+
+Interview must end automatically once duration is reached
+
+Final question may be cut short politely if time expires
+
+4.7 Interview Closing (Mandatory Script)
+
+When interview time is completed, AI must end exactly with:
+
+"Thank you, {{candidate_name}}.
+This concludes our interview.
+Your responses have been recorded for communication assessment.
+You may now stop the recording.
+Have a great day."
+
+5. AUDIO & VIDEO REQUIREMENTS
+5.1 Media Capture
+
+Live camera feed required
+
+Live microphone required
+
+Candidate must grant permissions before interview starts
+
+5.2 Recording
+
+Audio recording: Mandatory
+
+Video recording: Optional but recommended
+
+Files must be linked to interview session ID
+
+6. SPEECH-TO-TEXT (STT)
+
+Audio stream must be transcribed in near real-time
+
+Transcripts must include:
+
+Time stamps
+
+Speaker identification
+
+Silence detection must be implemented (3 seconds threshold)
+
+7. TEXT-TO-SPEECH (TTS)
+
+AI interviewer must speak using natural human-like voice
+
+Corporate, calm, neutral tone
+
+AI speech must disable candidate listening temporarily to prevent overlap
+
+8. AI INTERVIEWER BEHAVIOR RULES
+8.1 Tone & Persona
+
+Professional
+
+Calm
+
+Encouraging but neutral
+
+Never robotic
+
+Never overly friendly
+
+8.2 Strict Prohibitions
+
+AI must never:
+
+Give feedback during interview
+
+Evaluate or score while speaking
+
+Explain why a question is asked
+
+Mention AI, prompts, or systems
+
+Break interviewer character
+
+9. POST-INTERVIEW PROCESSING (ASYNC)
+
+After interview completion:
+
+9.1 Transcript Consolidation
+
+Combine all transcript segments
+
+Clean filler noise (optional)
+
+9.2 Communication Assessment
+
+LLM evaluates on:
+
+Clarity of thought
+
+Confidence
+
+Vocabulary & articulation
+
+Listening ability
+
+Structure of responses
+
+Persuasion / explanation skills
+
+9.3 Output
+
+Numerical scores (defined scale)
+
+Professional written summary
+
+Strengths & improvement areas
+
+Admin-only visibility
+
+10. DATA STORAGE & SECURITY
+10.1 Stored Data
+
+Interview metadata
+
+Audio/video recordings
+
+Full transcript
+
+AI-generated reports
+
+10.2 Compliance
+
+Explicit consent before recording
+
+Secure storage (encrypted at rest)
+
+Role-based access for admins
+
+11. NON-FUNCTIONAL REQUIREMENTS
+Category	Requirement
+Latency	AI response < 1.5 seconds
+Reliability	No dropped interview states
+Scalability	Multiple concurrent interviews
+Observability	Logs per interview session
+Fail Safety	Graceful recovery on mic/cam failure
+12. SUCCESS CRITERIA
+
+The platform is considered successful if:
+
+Interview feels human and professional
+
+No interruptions or overlaps occur
+
+Candidates trust the experience
+
+Reports are consistent and explainable
+
+Interviewers can replay & audit sessions
+
+13. VERSIONING & CONTROL
+
+This document is a source of truth
+
+Any change requires:
+
+Version update
+
+Approval
+
+Regression testing
