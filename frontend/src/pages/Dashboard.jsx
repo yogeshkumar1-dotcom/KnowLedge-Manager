@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useInterview } from '../contexts/InterviewContext';
 import axiosInstance from '../utils/axios';
 import {
   VideoCameraIcon,
@@ -7,42 +8,27 @@ import {
   CalendarIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [recordings, setRecordings] = useState([]);
+  const { interviews, loading } = useInterview();
   const [filteredRecordings, setFilteredRecordings] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedRecordings, setSelectedRecordings] = useState([]);
-
-  useEffect(() => {
-    fetchInterviews();
-  }, []);
+  const [downloadingPDF, setDownloadingPDF] = useState({});
 
   useEffect(() => {
     filterAndSortRecordings();
-  }, [recordings, searchTerm, statusFilter, sortBy, sortOrder]);
-
-  const fetchInterviews = async () => {
-    try {
-      const response = await axiosInstance.get('/api/v1/interviews?limit=100');
-      const interviews = response.data.data?.interviews || [];
-      setRecordings(interviews);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching interviews:', error);
-      setLoading(false);
-    }
-  };
+  }, [interviews, searchTerm, statusFilter, sortBy, sortOrder]);
 
   const filterAndSortRecordings = () => {
-    let filtered = recordings.filter(recording => {
+    let filtered = interviews.filter(recording => {
       const candidateName = recording.candidateName || '';
       const position = recording.position || '';
       const matchesSearch = candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -94,9 +80,15 @@ const Dashboard = () => {
     }
   };
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     const selectedData = filteredRecordings.filter(r => selectedRecordings.includes(r._id));
     
+    if (selectedData.length === 0) {
+      alert('Please select at least one interview to download.');
+      return;
+    }
+
+    // Generate the same HTML content as before
     let htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -160,15 +152,52 @@ const Dashboard = () => {
 </body>
 </html>`;
     
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `interview-report-${new Date().toISOString().split('T')[0]}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Convert HTML to PDF using backend service
+    try {
+      const response = await axiosInstance.post('/api/v1/interviews/generate-bulk-pdf', {
+        htmlContent,
+        filename: `interview-report-${new Date().toISOString().split('T')[0]}.pdf`
+      }, {
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `interview-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF report. Please try again.');
+    }
+  };
+
+  const downloadIndividualPDF = async (interviewId, candidateName) => {
+    setDownloadingPDF(prev => ({ ...prev, [interviewId]: true }));
+    try {
+      const response = await axiosInstance.get(`/api/v1/interviews/${interviewId}/pdf`, {
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Interview_Report_${candidateName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert(`Failed to download PDF report for ${candidateName}. Please try again.`);
+    } finally {
+      setDownloadingPDF(prev => ({ ...prev, [interviewId]: false }));
+    }
   };
 
   if (loading) {
@@ -184,7 +213,7 @@ const Dashboard = () => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-black text-gray-900 tracking-tight">Interview Dashboard</h1>
-          <p className="mt-1 text-lg text-gray-500 font-medium">Manage and analyze candidate interviews ({recordings.length} total)</p>
+          <p className="mt-1 text-lg text-gray-500 font-medium">Manage and analyze candidate interviews ({interviews.length} total)</p>
         </div>
         <div className="flex gap-3">
           {selectedRecordings.length > 0 && (
@@ -193,7 +222,7 @@ const Dashboard = () => {
               className="px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors shadow-lg flex items-center gap-2"
             >
               <ArrowDownTrayIcon className="h-5 w-5" />
-              Download ({selectedRecordings.length})
+              Download PDF ({selectedRecordings.length})
             </button>
           )}
           <button 
@@ -207,7 +236,7 @@ const Dashboard = () => {
 
       {/* Search and Filters */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
@@ -218,17 +247,6 @@ const Dashboard = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="scored">Completed</option>
-          </select>
           
           <select
             value={sortBy}
@@ -257,7 +275,7 @@ const Dashboard = () => {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Candidate Interviews</h2>
-              <p className="text-sm text-gray-500 mt-1">Showing {filteredRecordings.length} of {recordings.length} interviews</p>
+              <p className="text-sm text-gray-500 mt-1">Showing {filteredRecordings.length} of {interviews.length} interviews</p>
             </div>
             {filteredRecordings.length > 0 && (
               <button
@@ -294,7 +312,6 @@ const Dashboard = () => {
                   <div onClick={() => navigate(`/interview/${recording._id}`)}>
                     <h3 className="text-lg font-bold text-gray-900">{recording.candidateName || 'Unknown Candidate'}</h3>
                     <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
-                      <span>{recording.position || 'Unknown Position'}</span>
                       <span className="flex items-center">
                         <CalendarIcon className="h-4 w-4 mr-1" />
                         {recording.createdAt ? new Date(recording.createdAt).toLocaleDateString() : 'Unknown Date'}
@@ -318,6 +335,24 @@ const Dashboard = () => {
                   }`}>
                     {recording.status}
                   </div>
+                  
+                  {recording.status === 'scored' && (
+                    <button 
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadIndividualPDF(recording._id, recording.candidateName);
+                      }}
+                      disabled={downloadingPDF[recording._id]}
+                      title="Download PDF Report"
+                    >
+                      {downloadingPDF[recording._id] ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-green-600 border-t-transparent"></div>
+                      ) : (
+                        <DocumentArrowDownIcon className="h-5 w-5" />
+                      )}
+                    </button>
+                  )}
                   
                   <button 
                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

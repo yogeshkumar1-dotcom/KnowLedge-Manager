@@ -6,7 +6,8 @@ import { scoreInterview } from "../services/interviewScoring.services.js";
 import { analyzeInterviewWithAssemblyAI, getTranscriptInsights } from "../services/assemblyAIAnalysis.services.js";
 import { extractTranscript } from "../utils/extractTranscriptFromAudio.js";
 
-const createTranscript = asyncHandler(async (req, res) => {
+// Core logic without asyncHandler wrapper
+const createTranscriptCore = async (req, res) => {
   const interviewId = req.interviewId;
   if (!interviewId) {
     throw new ApiError(400, "interviewId required");
@@ -18,11 +19,14 @@ const createTranscript = asyncHandler(async (req, res) => {
   }
 
   if (interview.status === "scored") {
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(200, { interview }, "Interview already scored")
-      );
+    if (res && res.headersSent === false && typeof res.status === 'function') {
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(200, { interview }, "Interview already scored")
+        );
+    }
+    return interview;
   }
 
   const fileName = interview.fileName;
@@ -35,13 +39,19 @@ const createTranscript = asyncHandler(async (req, res) => {
   let speechMetrics = {};
   let assemblyaiTranscriptId = null;
   const fileExtension = fileName.split(".").pop().toLowerCase();
+  console.log(`File extension: ${fileExtension}`);
+  
   if (["mp3", "wav", "ogg", "m4a"].includes(fileExtension)) {
+    console.log(`File is audio format, calling extractTranscript...`);
     const result = await extractTranscript(fileName, interview);
     transcriptText = result.transcriptText;
     speechMetrics = result.speechMetrics;
     assemblyaiTranscriptId = result.speechMetrics?.assemblyaiTranscriptId;
+    console.log(`Transcript extracted, length: ${transcriptText.length} characters`);
+  } else {
+    console.log(`File extension ${fileExtension} not in audio formats, skipping transcript extraction`);
   }
-  // return res.json({ message: "Transcript extraction in progress", data: transcriptText });
+  
   // Update interview with transcript
   interview.transcriptText = transcriptText;
   interview.status = "processing";
@@ -54,7 +64,8 @@ const createTranscript = asyncHandler(async (req, res) => {
   
   try {
     // Gemini-based scoring
-    const scoring = await scoreInterview(transcriptText);
+    const scoring = await scoreInterview(transcriptText, interview.candidateName, req.body.customApiKey, req.body.selectedModel);
+    console.log("Gemini scoring completed");
     
     // AssemblyAI LLM analysis (if transcript ID available)
     if (assemblyaiTranscriptId) {
@@ -91,17 +102,28 @@ const createTranscript = asyncHandler(async (req, res) => {
     );
     
     interviewScore = updatedInterview;
+    console.log(`Interview ${interviewId} scored successfully`);
   } catch (error) {
+    console.error('Error during interview scoring:', error);
     interview.status = 'pending';
     await interview.save();
+    throw error;
   }
 
-  res
-    .status(200)
-    .json(
-      new ApiResponse(200, { interview: interviewScore }, "Interview processing completed")
-    );
-});
+  // Only send response if not called from background processing
+  if (res && res.headersSent === false && typeof res.status === 'function') {
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, { interview: interviewScore }, "Interview processing completed")
+      );
+  }
+  
+  return interviewScore;
+};
+
+// Wrapped version for HTTP endpoints
+const createTranscript = asyncHandler(createTranscriptCore);
 
 const getInterview = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -178,4 +200,4 @@ const getRecentInterviews = asyncHandler(async (req, res) => {
   );
 });
 
-export { createTranscript, getInterview, getRecentInterviews };
+export { createTranscript, createTranscriptCore, getInterview, getRecentInterviews };

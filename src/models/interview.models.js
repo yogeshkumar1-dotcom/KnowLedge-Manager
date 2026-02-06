@@ -10,10 +10,6 @@ const interviewSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  position: {
-    type: String,
-    required: true
-  },
   interviewDate: {
     type: Date,
     required: true
