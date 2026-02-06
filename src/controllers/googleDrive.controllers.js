@@ -9,6 +9,7 @@ import { processInterviewInBackground } from "../utils/backgroundProcessor.js";
 import { processUploadedVideo } from "./uploadsProcessor.controllers.js";
 import axios from "axios";
 import { extractCandidateFromFilename } from "../utils/nameExtractor.js";
+import { extractNameWithAI } from "../utils/AI_NameExtractor.js";
 import { uploadAudioOfMeeting } from "../services/uploadAudioOfMeeting.services.js";
 import crypto from "crypto";
 import fs from "fs";
@@ -150,11 +151,26 @@ const uploadFromGoogleDrive = asyncHandler(async (req, res, next) => {
         if (!processedBuffer || processedBuffer.length === 0) {
           throw new Error("Audio extraction returned empty buffer");
         }
-        audioFileName = sanitizedFileName.replace(/\.[^/.]+$/, ".wav");
+        // Ensure proper .wav extension for extracted audio
+        audioFileName = sanitizedFileName.includes('.') 
+          ? sanitizedFileName.replace(/\.[^/.]+$/, ".wav")
+          : `${sanitizedFileName}.wav`;
       } catch (extractError) {
         throw new ApiError(500, `Failed to extract audio from video: ${extractError.message}`);
       }
-    } else if (fileTypeCategory !== "audio") {
+    } else if (fileTypeCategory === "audio") {
+      // Ensure audio files have proper extension
+      if (!sanitizedFileName.includes('.')) {
+        const audioExtMap = {
+          'audio/mpeg': 'mp3',
+          'audio/wav': 'wav',
+          'audio/ogg': 'ogg',
+          'audio/m4a': 'm4a'
+        };
+        const ext = audioExtMap[mimeType] || 'mp3';
+        audioFileName = `${sanitizedFileName}.${ext}`;
+      }
+    } else {
       throw new ApiError(400, `Unsupported file type category: ${fileTypeCategory}`);
     }
 
@@ -166,9 +182,14 @@ const uploadFromGoogleDrive = asyncHandler(async (req, res, next) => {
     };
 
     const { fileUrl, fileName: uploadedFileName } = await uploadAudioOfMeeting(audioFile);
+    console.log(`Audio uploaded to Supabase: ${uploadedFileName}`);
 
-    // Extract candidate name from filename
-    const candidateName = extractCandidateFromFilename(fileName) || "Unknown Candidate";
+    // Extract candidate name using AI first, fallback to regex pattern
+    let candidateName = await extractNameWithAI(fileName);
+    if (!candidateName) {
+      candidateName = extractCandidateFromFilename(fileName) || "Unknown Candidate";
+    }
+    console.log(`Extracted candidate name: ${candidateName}`);
 
     // Create Interview record with all details at once
     const interview = await Interview.create({
@@ -182,30 +203,40 @@ const uploadFromGoogleDrive = asyncHandler(async (req, res, next) => {
       googleDriveFileId: fileId,
       status: "pending",
     });
+    console.log(`Interview created with ID: ${interview._id}, fileName: ${uploadedFileName}`);
 
-    // Wait for background processing to complete (transcription + LLM scoring)
+    // Build aiConfig from incoming request and wait for background processing
+    const aiConfig = {
+      customApiKey: req.body && req.body.customApiKey ? req.body.customApiKey : null,
+      selectedModel: req.body && req.body.selectedModel ? req.body.selectedModel : null,
+    };
+
+    console.log(`Starting background processing for interview ${interview._id}`);
+    console.log(`AI Config:`, aiConfig);
+    
     try {
-      await processInterviewInBackground(interview._id);
+      await processInterviewInBackground(interview._id, aiConfig);
+      console.log(`Background processing completed for interview ${interview._id}`);
     } catch (bgError) {
-      console.error(`Background processing error for interview ${interview._id}:`, bgError.message);
+      console.error(`Background processing error for interview ${interview._id}:`, bgError);
+      console.error(`Error stack:`, bgError.stack);
       // Continue and return the interview even if processing had issues
     }
 
     // Fetch updated interview with transcript and scores
     const updatedInterview = await Interview.findById(interview._id);
+    console.log(`Updated interview status: ${updatedInterview.status}, has transcript: ${!!updatedInterview.transcriptText}`);
 
-    // Return success response with final results
+    // Return success response with final results (match local upload response structure)
     res.status(200).json(
       new ApiResponse(
         200,
         {
-          data: {
-            interview: updatedInterview,
-            fileUrl,
-            fileName: uploadedFileName,
-          },
+          interview: updatedInterview,
+          fileUrl,
+          fileName: uploadedFileName,
         },
-        "File uploaded and processing in background"
+        "File uploaded and processing complete"
       )
     );
   } catch (error) {

@@ -40,8 +40,10 @@ const scoreWithOpenAI = async (transcript, candidateName, customApiKey, model) =
   const response = await openai.chat.completions.create({
     model: model,
     messages: [{ role: "user", content: prompt }],
-    temperature: 0,
+    temperature: 0, // Deterministic output
     max_tokens: 4096,
+    top_p: 1, // Use full probability distribution
+    seed: 12345, // Consistent seed for reproducibility
   });
   
   const rawText = response.choices[0].message.content;
@@ -60,8 +62,10 @@ const scoreWithGemini = async (transcript, candidateName, customApiKey, model) =
     model: model,
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0,
+      temperature: 0, // Deterministic output
       maxOutputTokens: 4096,
+      topP: 1, // Use full probability distribution
+      topK: 1, // Most deterministic
     }
   });
   
@@ -74,35 +78,73 @@ const getAnalysisPrompt = (transcript, candidateName) => {
   const candidateInfo = candidateName ? `\nCandidate Name (from filename): ${candidateName}` : '';
   
   return `
-You are an expert interview communication coach like professional tools (e.g. Yoodli-style analysis).
+You are an expert interview communication coach. Analyze this transcript with OBJECTIVE, CONSISTENT scoring.
 
-RULES (VERY IMPORTANT):
-- Analyze ONLY what is present in the transcript.
-- Be objective and professional.
-- Do NOT hallucinate data.
-- Do NOT explain anything outside JSON.
-- ALWAYS return VALID JSON.
-- Scores must be between 0 and 10.
-- Use decimals where appropriate.
-- If something cannot be inferred, mark it as null.
-- Extract actual names mentioned in the conversation, not just "Speaker A" or "Speaker B".
-- Look for introductions like "Hi, I'm John" or "My name is Sarah".
-- Be CONSISTENT - same transcript should always give same scores.
-- SUMMARY VERDICT: Write exactly 50-100 words providing comprehensive analysis of the candidate's performance, communication style, strengths, areas for improvement, and overall assessment.
-- Do NOT give 9–10 unless performance is clearly exceptional
-- Most overall scores SHOULD fall between 5–9
-- If transcript is short, unclear, or casual → penalize
-- Scores must be CONSISTENT across candidates${candidateInfo}
+CRITICAL RULES FOR CONSISTENCY:
+1. ALWAYS use the same scoring criteria for the same quality of response
+2. Temperature is 0 - your scores MUST be deterministic
+3. Use the rubric below EXACTLY - no subjective interpretation
+4. Same transcript = EXACT same scores every time
+5. Base scores ONLY on observable evidence in transcript
+6. Do NOT vary scores based on "feeling" - use the rubric
 
-SCORING WEIGHTS:
-- Fluency: 25%
-- Clarity: 20%
-- Confidence: 20%
-- Structure: 15%
-- Relevance: 10%
-- Engagement: 10%
+SCORING RUBRIC (0-10 scale):
 
-FINAL SCORE = weighted average (rounded to 1 decimal).
+FLUENCY (25% weight):
+- 9-10: Smooth, natural flow with no hesitations
+- 7-8: Mostly fluent with minor pauses
+- 5-6: Noticeable hesitations but understandable
+- 3-4: Frequent pauses, choppy delivery
+- 0-2: Very difficult to follow, constant interruptions
+
+CLARITY (20% weight):
+- 9-10: Crystal clear, well-articulated, easy to understand
+- 7-8: Clear with minor unclear moments
+- 5-6: Generally understandable but some confusion
+- 3-4: Often unclear or ambiguous
+- 0-2: Very difficult to understand
+
+CONFIDENCE (20% weight):
+- 9-10: Assertive, decisive, no self-doubt
+- 7-8: Confident with minor uncertainty
+- 5-6: Moderate confidence, some hesitation
+- 3-4: Uncertain, frequent self-correction
+- 0-2: Very uncertain, lacks conviction
+
+STRUCTURE (15% weight):
+- 9-10: Logical, organized, follows clear framework
+- 7-8: Mostly structured with minor tangents
+- 5-6: Some structure but disorganized at times
+- 3-4: Poorly organized, hard to follow
+- 0-2: No clear structure, chaotic
+
+RELEVANCE (10% weight):
+- 9-10: All points directly relevant and on-topic
+- 7-8: Mostly relevant with minor tangents
+- 5-6: Some relevant points, some off-topic
+- 3-4: Often off-topic or irrelevant
+- 0-2: Mostly irrelevant content
+
+ENGAGEMENT (10% weight):
+- 9-10: Highly engaging, enthusiastic, compelling
+- 7-8: Engaging with good energy
+- 5-6: Moderately engaging
+- 3-4: Low engagement, monotone
+- 0-2: Disengaged, no energy
+
+FINAL SCORE CALCULATION:
+= (Fluency × 0.25) + (Clarity × 0.20) + (Confidence × 0.20) + (Structure × 0.15) + (Relevance × 0.10) + (Engagement × 0.10)
+
+OBJECTIVE METRICS:
+- Count filler words: um, uh, like, you know, basically, actually, etc.
+- Estimate words per minute (typical: 120-150 WPM)
+- Identify repeated phrases or words
+- Note grammatical errors
+
+CONSISTENCY CHECK:
+- If you see the SAME transcript again, you MUST give the SAME scores
+- Use the rubric mechanically - don't interpret creatively
+- Round to 1 decimal place for consistency${candidateInfo}
 
 TRANSCRIPT:
 """
@@ -156,10 +198,11 @@ RETURN JSON IN EXACTLY THIS FORMAT:
 }
 
 IMPORTANT:
-- Output JSON only.
-- No markdown.
-- No explanations.
-- Be CONSISTENT with scoring.
+- Output JSON only
+- No markdown
+- No explanations
+- Use the rubric EXACTLY as specified
+- Be DETERMINISTIC - same input = same output
 `;
 };
 

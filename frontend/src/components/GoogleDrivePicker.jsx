@@ -87,6 +87,11 @@ const GoogleDrivePicker = ({ onFilesSelected, meetingDate }) => {
     setError('');
 
     try {
+      // Get AI configuration from localStorage (same as local upload)
+      const isUsingCustomKey = localStorage.getItem('isUsingCustomKey') === 'true';
+      const customApiKey = isUsingCustomKey ? localStorage.getItem('customApiKey') : null;
+      const selectedModel = localStorage.getItem('selectedModel') || 'gemini-2.5-flash';
+
       const uploadPromises = selectedFiles.map((file) =>
         axiosInstance.post(
           '/api/v1/audio/google-drive',
@@ -96,6 +101,9 @@ const GoogleDrivePicker = ({ onFilesSelected, meetingDate }) => {
             mimeType: file.mimeType || 'video/unknown',
             size: file.sizeBytes || 0,
             meetingDate: meetingDate || new Date().toISOString().split('T')[0],
+            // Add AI configuration
+            customApiKey: isUsingCustomKey && customApiKey ? customApiKey : null,
+            selectedModel: selectedModel,
           },
           {
             timeout: 300000, // 5 minute timeout to allow for AssemblyAI polling
@@ -113,7 +121,7 @@ const GoogleDrivePicker = ({ onFilesSelected, meetingDate }) => {
       
       results.forEach((result) => {
         if (result.status === 'fulfilled') {
-          const responseData = result.value.data?.data?.data;
+          const responseData = result.value.data?.data;
           if (responseData?.interview) {
             processedInterviews.push({
               file: responseData.interview,

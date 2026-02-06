@@ -6,6 +6,7 @@ import { Interview } from "../models/interview.models.js";
 import { extractAudioFromVideo } from "../utils/videoProcessor.js";
 import { processInterviewInBackground } from "../utils/backgroundProcessor.js";
 import { extractCandidateFromFilename } from "../utils/nameExtractor.js";
+import { extractNameWithAI } from "../utils/AI_NameExtractor.js";
 import crypto from "crypto";
 import {
   uploadAudioOfMeeting,
@@ -57,7 +58,7 @@ const handleSingleFile = asyncHandler(async (req, res, next) => {
 
   const interview = await Interview.create({
     userId: req.body.userId,
-    candidateName: req.body.candidateName || extractCandidateFromFilename(file.originalname) || "Unknown Candidate",
+    candidateName: req.body.candidateName || await extractNameWithAI(file.originalname) || extractCandidateFromFilename(file.originalname) || "Unknown Candidate",
     position: req.body.position || "Unknown Position",
     interviewDate: req.body.meetingDate || new Date(),
     fileName, transcriptText, fileHash, status: transcriptText ? "processing" : "pending"
@@ -115,7 +116,7 @@ const processFileIndependently = async (file, bodyData) => {
 
   const interview = await Interview.create({
     userId: bodyData.userId,
-    candidateName: bodyData.candidateName || extractCandidateFromFilename(file.originalname) || "Unknown Candidate",
+    candidateName: bodyData.candidateName || await extractNameWithAI(file.originalname) || extractCandidateFromFilename(file.originalname) || "Unknown Candidate",
     position: bodyData.position || "Unknown Position",
     interviewDate: bodyData.meetingDate || new Date(),
     fileName, transcriptText, fileHash, status: "pending"
