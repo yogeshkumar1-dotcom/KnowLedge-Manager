@@ -14,11 +14,13 @@ import {
 } from "@heroicons/react/24/outline";
 import CommunicationAnalytics from "../components/CommunicationAnalytics";
 import ActivitiesList from "../components/ActivitiesList";
+import GoogleDrivePicker from "../components/GoogleDrivePicker";
 
 const Upload = () => {
   const { user } = useAuth();
   const { addInterview, updateInterview } = useInterview();
   const navigate = useNavigate();
+  const [uploadMode, setUploadMode] = useState("local"); // "local" or "google-drive"
   const [files, setFiles] = useState([]);
   const [meetingDate, setMeetingDate] = useState(
     new Date().toISOString().split("T")[0],
@@ -374,6 +376,88 @@ const Upload = () => {
     }
   };
 
+  /**
+   * Handle Google Drive file selection
+   * Called by GoogleDrivePicker component when file is ready for processing
+   */
+  const handleGoogleDriveFileSelected = async (fileData) => {
+    if (!fileData || !fileData.file) {
+      setMessage("❌ Invalid file data from Google Drive");
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(50); // Show partial progress for Google Drive processing
+    setMessage("");
+
+    try {
+      // The backend has already processed the file and returned interview data
+      const interview = fileData.file.interview || fileData.file;
+      
+      const transformedData = {
+        transcript: {
+          fileName: interview.fileName || fileData.fileName || "Unknown File",
+          candidateName: interview.candidateName || "Unknown Candidate",
+          status: interview.status || "pending",
+          notes: {
+            summary:
+              interview.summary?.verdict ||
+              "Analysis in progress for Google Drive file",
+          },
+          analytics: {
+            overallCommunicationScore:
+              interview.overall_communication_score,
+            overallScore: interview.overall_communication_score,
+            fluencyScore: interview.language_quality?.fluency_score,
+            confidenceScore:
+              interview.communication_skills?.confidence_score,
+            clarityScore: interview.language_quality?.clarity_score,
+            clarityPronunciation: interview.language_quality?.clarity_score,
+            speechRate: interview.speech_metrics?.words_per_minute
+              ? Math.min(interview.speech_metrics.words_per_minute / 20, 10)
+              : 7,
+            volumeConsistency:
+              interview.communication_skills?.confidence_score,
+            voiceModulation:
+              interview.communication_skills?.engagement_score,
+            flow: interview.language_quality?.fluency_score,
+            vocabularyRichness: interview.language_quality?.grammar_score,
+            grammarAccuracy: interview.language_quality?.grammar_score,
+            coherence: interview.communication_skills?.structure_score,
+            relevance: interview.communication_skills?.relevance_score,
+            clarityOfMessage:
+              interview.communication_skills?.structure_score,
+            confidenceLevel:
+              interview.communication_skills?.confidence_score,
+            engagement: interview.communication_skills?.engagement_score,
+            empathyWarmth:
+              interview.communication_skills?.engagement_score,
+            emotionalTone: "Professional",
+            strengths:
+              interview.coaching_feedback?.what_went_well ||
+              interview.summary?.strengths ||
+              [],
+            weakAreas:
+              interview.coaching_feedback?.what_to_improve ||
+              interview.summary?.primary_issues ||
+              [],
+          },
+        },
+      };
+      
+      setResults([transformedData]);
+      setSelectedResult(transformedData);
+      setUploadProgress(100);
+      setRefreshTrigger((prev) => prev + 1);
+      setMessage("✅ Google Drive file processed successfully!");
+    } catch (error) {
+      console.error("Google Drive upload error:", error);
+      setMessage("❌ Failed to process Google Drive file. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-10 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -396,7 +480,45 @@ const Upload = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Upload Form */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-8">
+          {/* Upload Mode Tabs */}
+          <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
+            <button
+              onClick={() => {
+                setUploadMode("local");
+                setMessage("");
+              }}
+              className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${
+                uploadMode === "local"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <CloudArrowUpIcon className="h-5 w-5" />
+                <span>Local Upload</span>
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                setUploadMode("google-drive");
+                setMessage("");
+              }}
+              className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${
+                uploadMode === "google-drive"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <SparklesIcon className="h-5 w-5" />
+                <span>Google Drive</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Local File Upload */}
+          {uploadMode === "local" && (
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-black text-gray-400 uppercase tracking-widest pl-1">
@@ -558,7 +680,53 @@ const Upload = () => {
                 </>
               )}
             </button>
-          </div>
+            </div>
+          )}
+
+          {/* Google Drive Upload */}
+          {uploadMode === "google-drive" && (
+            <>
+              <div className="space-y-2 mb-6">
+                <label className="text-sm font-black text-gray-400 uppercase tracking-widest pl-1">
+                  Session Date
+                </label>
+                <div className="relative">
+                  <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-500" />
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 font-bold text-gray-700"
+                  />
+                </div>
+              </div>
+              <GoogleDrivePicker
+                onFilesSelected={handleGoogleDriveFileSelected}
+                meetingDate={meetingDate}
+              />
+              {uploading && (
+                <div className="space-y-3 animate-pulse">
+                  <div className="flex justify-between text-sm font-black text-blue-600 uppercase tracking-widest">
+                    <span>Processing Google Drive File...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="h-3 w-full bg-blue-50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {message && (
+                <div
+                  className={`p-4 rounded-2xl font-bold text-sm ${message.includes("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}
+                >
+                  {message}
+                </div>
+              )}
+            </>
+          )}
 
           {/* Results Section */}
           {results.length > 0 && (

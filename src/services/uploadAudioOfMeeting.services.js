@@ -81,14 +81,28 @@ const pdf = require("pdf-parse");
 import mammoth from "mammoth";
 import ApiError from "../utils/ApiError.js";
 
+/**
+ * Sanitize filename to remove invalid characters for Supabase storage keys
+ */
+const sanitizeFileName = (fileName) => {
+  return fileName
+    .replace(/[^\w\s.-]/g, '_') // Replace invalid chars with underscore
+    .replace(/\s+/g, '_') // Replace spaces with underscore
+    .replace(/_+/g, '_') // Replace multiple underscores with single
+    .toLowerCase()
+    .substring(0, 200); // Limit length
+};
+
 const uploadAudioOfMeeting = async (file) => {
   const bucketName = process.env.SUPABASE_BUCKET_NAME || "supabase-bucket";
   if (!bucketName) {
     throw new ApiError(500, "Supabase bucket name not configured");
   }
   const fileExtension = file.originalname.split(".").pop();
-  const fileName = `${Date.now()}.${fileExtension}`;
+  const sanitizedBaseName = sanitizeFileName(file.originalname.replace(/\.[^/.]+$/, ''));
+  const fileName = `${Date.now()}_${sanitizedBaseName}.${fileExtension}`;
   const fileBuffer = file.buffer;
+  
   const { data, error } = await supabase.storage
     .from(bucketName)
     .upload(fileName, fileBuffer, {
@@ -101,6 +115,7 @@ const uploadAudioOfMeeting = async (file) => {
       error.message,
     ]);
   }
+  
   const { data: signedUrlData, error: urlError } = await supabase.storage
     .from(bucketName)
     .createSignedUrl(fileName, 60 * 60 * 24); // URL valid for 24 hours
@@ -115,7 +130,6 @@ const uploadAudioOfMeeting = async (file) => {
 
 const uploadTranscriptOfMeeting = async (file) => {
   if (!file) throw new ApiError(400, "No file uploaded");
-  console.log("Files - ", file);
 
   const fileType = file.mimetype.split("/")[1];
   const dataBuffer = file.buffer;
